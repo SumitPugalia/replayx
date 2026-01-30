@@ -34,7 +34,9 @@ defmodule Replayx.Replayer do
     Process.delete(:replayx_recorder)
 
     case Replayx.ReplayerState.pop_message(agent_pid) do
-      :empty -> {:ok, state}
+      :empty ->
+        {:ok, state}
+
       {_seq, :call, from, payload} ->
         case module.handle_call_impl(payload, from, state) do
           {:reply, _reply, new_state} -> replay_loop(module, new_state, agent_pid)
@@ -43,6 +45,7 @@ defmodule Replayx.Replayer do
           {:stop, _reason, new_state} -> {:ok, new_state}
           other -> raise "Replay: handle_call_impl returned unexpected #{inspect(other)}"
         end
+
       {_seq, :cast, _from, payload} ->
         case module.handle_cast_impl(payload, state) do
           {:noreply, new_state} -> replay_loop(module, new_state, agent_pid)
@@ -50,6 +53,7 @@ defmodule Replayx.Replayer do
           {:stop, _reason, new_state} -> {:ok, new_state}
           other -> raise "Replay: handle_cast_impl returned unexpected #{inspect(other)}"
         end
+
       {_seq, :info, _from, payload} ->
         case module.handle_info_impl(payload, state) do
           {:noreply, new_state} -> replay_loop(module, new_state, agent_pid)

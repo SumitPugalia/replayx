@@ -35,8 +35,12 @@ defmodule Replayx.GenServer do
       def handle_cast_impl(msg, state), do: {:noreply, state}
       def handle_info_impl(msg, state), do: {:noreply, state}
 
-      defoverridable handle_call: 3, handle_cast: 2, handle_info: 2,
-                     handle_call_impl: 3, handle_cast_impl: 2, handle_info_impl: 2
+      defoverridable handle_call: 3,
+                     handle_cast: 2,
+                     handle_info: 2,
+                     handle_call_impl: 3,
+                     handle_cast_impl: 2,
+                     handle_info_impl: 2
     end
   end
 
@@ -66,6 +70,7 @@ defmodule Replayx.GenServer do
       Process.put(:replayx_recorder, recorder)
       Process.delete(:replayx_replayer)
     end
+
     if replayer = state[:replayx_replayer] do
       Process.put(:replayx_replayer, replayer)
       Process.delete(:replayx_recorder)
@@ -74,7 +79,9 @@ defmodule Replayx.GenServer do
 
   defp maybe_record_message(state, kind, from, payload) do
     case state[:replayx_recorder] do
-      nil -> :ok
+      nil ->
+        :ok
+
       recorder_pid ->
         seq = Replayx.Recorder.next_seq(recorder_pid)
         Replayx.Recorder.record_event(recorder_pid, {:message, seq, kind, from, payload})

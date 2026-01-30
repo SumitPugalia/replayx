@@ -14,10 +14,12 @@ defmodule Mix.Tasks.Replay do
   @impl Mix.Task
   def run(args) do
     {_opts, args, _} = OptionParser.parse(args, strict: [])
+
     case args do
       [path | module_name_parts] ->
         module = module_name_parts |> Enum.join(".") |> String.split(".") |> Module.concat()
         replay(path, module)
+
       [] ->
         Mix.raise("Usage: mix replay <trace.json> <Module.Name>")
     end
@@ -31,6 +33,7 @@ defmodule Mix.Tasks.Replay do
     case Replayx.replay(path, module) do
       {:ok, _state} ->
         Mix.shell().info("Replay completed successfully.")
+
       {:error, reason} ->
         Mix.raise("Replay failed: #{inspect(reason)}")
     end

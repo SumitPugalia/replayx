@@ -13,9 +13,13 @@ defmodule Replayx.Clock do
     case Process.get(:replayx_recorder) do
       nil ->
         case Process.get(:replayx_replayer) do
-          nil -> System.monotonic_time(unit)
-          agent_pid -> pop_and_return(agent_pid, :time_monotonic, &System.monotonic_time/1, [unit])
+          nil ->
+            System.monotonic_time(unit)
+
+          agent_pid ->
+            pop_and_return(agent_pid, :time_monotonic, &System.monotonic_time/1, [unit])
         end
+
       recorder_pid ->
         value = System.monotonic_time(unit)
         Replayx.Recorder.record_event(recorder_pid, {:time_monotonic, value})
@@ -34,6 +38,7 @@ defmodule Replayx.Clock do
           nil -> System.system_time(unit)
           agent_pid -> pop_and_return(agent_pid, :time_system, &System.system_time/1, [unit])
         end
+
       recorder_pid ->
         value = System.system_time(unit)
         Replayx.Recorder.record_event(recorder_pid, {:time_system, value})
@@ -54,6 +59,7 @@ defmodule Replayx.Clock do
           nil -> Process.send_after(pid, msg, delay_ms)
           agent_pid -> pop_send_after_ref(agent_pid)
         end
+
       recorder_pid ->
         ref = Process.send_after(pid, msg, delay_ms)
         Replayx.Recorder.record_event(recorder_pid, {:send_after, ref, delay_ms})
@@ -63,9 +69,14 @@ defmodule Replayx.Clock do
 
   defp pop_and_return(agent_pid, expected_type, real_fun, real_args) do
     case Replayx.ReplayerState.pop(agent_pid) do
-      {^expected_type, value} -> value
-      {other, _} -> raise "Replay divergence: expected #{inspect(expected_type)}, got #{inspect(other)}"
-      :empty -> real_fun.(Enum.at(real_args, 0))
+      {^expected_type, value} ->
+        value
+
+      {other, _} ->
+        raise "Replay divergence: expected #{inspect(expected_type)}, got #{inspect(other)}"
+
+      :empty ->
+        real_fun.(Enum.at(real_args, 0))
     end
   end
 

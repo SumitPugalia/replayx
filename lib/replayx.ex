@@ -37,6 +37,7 @@ defmodule Replayx do
   @spec record(String.t(), (pid() -> term())) :: term()
   def record(path, fun) when is_binary(path) and is_function(fun, 1) do
     {:ok, recorder_pid} = Replayx.Recorder.start_link(path)
+
     try do
       fun.(recorder_pid)
     after

@@ -7,12 +7,14 @@ defmodule ReplayxTest do
     @tag :tmp_dir
     test "records messages and replays without crash", %{tmp_dir: tmp_dir} do
       path = Path.join(tmp_dir, "trace.json")
+
       Replayx.record(path, fn recorder_pid ->
         {:ok, pid} = Replayx.Examples.CrashingGenServer.start_link(recorder_pid)
         send(pid, :tick)
         send(pid, :tick)
         GenServer.call(pid, :state)
       end)
+
       assert File.exists?(path)
       assert {:ok, _state} = Replayx.replay(path, Replayx.Examples.CrashingGenServer)
     end
@@ -20,6 +22,7 @@ defmodule ReplayxTest do
     @tag :tmp_dir
     test "replay reproduces crash when trace ends in crash", %{tmp_dir: tmp_dir} do
       path = Path.join(tmp_dir, "trace_crash.json")
+
       Replayx.record(path, fn recorder_pid ->
         {:ok, pid} = Replayx.Examples.CrashingGenServer.start_link(recorder_pid)
         Process.unlink(pid)
@@ -28,6 +31,7 @@ defmodule ReplayxTest do
         send(pid, :crash)
         assert_receive {:DOWN, ^ref, :process, ^pid, _}
       end)
+
       assert_raise RuntimeError, ~r/replayx example crash/, fn ->
         Replayx.replay(path, Replayx.Examples.CrashingGenServer)
       end

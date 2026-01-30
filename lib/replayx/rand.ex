@@ -16,6 +16,7 @@ defmodule Replayx.Rand do
           nil -> :rand.uniform()
           agent_pid -> pop_rand_value(agent_pid)
         end
+
       recorder_pid ->
         value = :rand.uniform()
         Replayx.Recorder.record_event(recorder_pid, {:rand, value})
@@ -39,6 +40,7 @@ defmodule Replayx.Rand do
           nil -> :rand.uniform(max)
           agent_pid -> pop_rand_value_int(agent_pid)
         end
+
       recorder_pid ->
         value = :rand.uniform(max)
         Replayx.Recorder.record_event(recorder_pid, {:rand, value + 0.0})
@@ -57,6 +59,7 @@ defmodule Replayx.Rand do
           nil -> :rand.seed(:exsss, seed)
           agent_pid -> pop_rand_seed(agent_pid)
         end
+
       recorder_pid ->
         :rand.seed(:exsss, seed)
         Replayx.Recorder.record_event(recorder_pid, {:rand_seed, seed})
@@ -86,8 +89,12 @@ defmodule Replayx.Rand do
       {:rand_seed, seed} ->
         :rand.seed(:exsss, seed)
         :ok
-      {other, _} -> raise "Replay divergence: expected rand_seed, got #{inspect(other)}"
-      :empty -> :ok
+
+      {other, _} ->
+        raise "Replay divergence: expected rand_seed, got #{inspect(other)}"
+
+      :empty ->
+        :ok
     end
   end
 end

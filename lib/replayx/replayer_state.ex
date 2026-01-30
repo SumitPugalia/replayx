@@ -23,7 +23,9 @@ defmodule Replayx.ReplayerState do
   def pop(agent_pid) do
     Agent.get_and_update(agent_pid, fn state ->
       case state.events do
-        [] -> {:empty, state}
+        [] ->
+          {:empty, state}
+
         [event | rest] ->
           {type, value} = event_to_type_value(event)
           {{type, value}, %{state | events: rest}}
@@ -43,7 +45,9 @@ defmodule Replayx.ReplayerState do
     end
   end
 
-  defp event_to_type_value({:message, seq, kind, from, payload}), do: {:message, {seq, kind, from, payload}}
+  defp event_to_type_value({:message, seq, kind, from, payload}),
+    do: {:message, {seq, kind, from, payload}}
+
   defp event_to_type_value({:time_monotonic, v}), do: {:time_monotonic, v}
   defp event_to_type_value({:time_system, v}), do: {:time_system, v}
   defp event_to_type_value({:rand, v}), do: {:rand, v}

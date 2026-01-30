@@ -67,13 +67,21 @@ defmodule Replayx.Trace do
   Converts a JSON map back to an event tuple.
   """
   @spec map_to_event(map()) :: event()
-  def map_to_event(%{"type" => "message", "seq" => seq, "kind" => kind, "from" => from, "payload" => payload}) do
-    kind_atom = case kind do
-      "call" -> :call
-      "cast" -> :cast
-      "info" -> :info
-      _ -> :info
-    end
+  def map_to_event(%{
+        "type" => "message",
+        "seq" => seq,
+        "kind" => kind,
+        "from" => from,
+        "payload" => payload
+      }) do
+    kind_atom =
+      case kind do
+        "call" -> :call
+        "cast" -> :cast
+        "info" -> :info
+        _ -> :info
+      end
+
     {:message, seq, kind_atom, decode_term(from), decode_term(payload)}
   end
 
