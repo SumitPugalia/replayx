@@ -1,0 +1,65 @@
+defmodule ReplayxTest do
+  use ExUnit.Case, async: false
+
+  doctest Replayx
+
+  describe "record and replay" do
+    @tag :tmp_dir
+    test "records messages and replays without crash", %{tmp_dir: tmp_dir} do
+      path = Path.join(tmp_dir, "trace.json")
+      Replayx.record(path, fn recorder_pid ->
+        {:ok, pid} = Replayx.Examples.CrashingGenServer.start_link(recorder_pid)
+        send(pid, :tick)
+        send(pid, :tick)
+        GenServer.call(pid, :state)
+      end)
+      assert File.exists?(path)
+      assert {:ok, _state} = Replayx.replay(path, Replayx.Examples.CrashingGenServer)
+    end
+
+    @tag :tmp_dir
+    test "replay reproduces crash when trace ends in crash", %{tmp_dir: tmp_dir} do
+      path = Path.join(tmp_dir, "trace_crash.json")
+      Replayx.record(path, fn recorder_pid ->
+        {:ok, pid} = Replayx.Examples.CrashingGenServer.start_link(recorder_pid)
+        Process.unlink(pid)
+        ref = Process.monitor(pid)
+        send(pid, :tick)
+        send(pid, :crash)
+        assert_receive {:DOWN, ^ref, :process, ^pid, _}
+      end)
+      assert_raise RuntimeError, ~r/replayx example crash/, fn ->
+        Replayx.replay(path, Replayx.Examples.CrashingGenServer)
+      end
+    end
+  end
+
+  describe "Trace" do
+    test "encode_term and decode_term roundtrip" do
+      term = %{pid: self(), ref: make_ref(), x: 1}
+      encoded = Replayx.Trace.encode_term(term)
+      assert is_binary(encoded)
+      assert Replayx.Trace.decode_term(encoded) == term
+    end
+
+    test "event_to_map and map_to_event roundtrip" do
+      event = {:message, 1, :info, nil, :hello}
+      map = Replayx.Trace.event_to_map(event)
+      assert map["type"] == "message"
+      assert Replayx.Trace.map_to_event(map) == event
+    end
+  end
+
+  describe "Recorder" do
+    @tag :tmp_dir
+    test "writes trace file on stop", %{tmp_dir: tmp_dir} do
+      path = Path.join(tmp_dir, "rec.json")
+      {:ok, pid} = Replayx.Recorder.start_link(path)
+      Replayx.Recorder.record_event(pid, {:time_monotonic, 123})
+      Replayx.Recorder.stop(pid)
+      assert File.exists?(path)
+      {_meta, events} = Replayx.Trace.read(path)
+      assert events == [{:time_monotonic, 123}]
+    end
+  end
+end
