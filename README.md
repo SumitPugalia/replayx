@@ -188,6 +188,27 @@ use Replayx.GenServer,
 
 ---
 
+## Phoenix / request replay
+
+You can record a trace when a Phoenix (or Plug) request triggers GenServer behaviour, then replay the same execution from the CLI.
+
+**Pattern:** In your controller or Plug, when handling a request that sends work to a GenServer, wrap the interaction in `Replayx.record/2` and use a path that identifies the request (e.g. timestamp or request id). The callback receives the recorder pid; start or look up your GenServer (e.g. via registry), pass the recorder to it if it uses `Replayx.GenServer`, then send the same messages you would send for this request (e.g. from `conn.params` or body). Wait for the response (or crash) before returning from the callback so the trace is flushed.
+
+Example (conceptual):
+
+```elixir
+# In a controller or Plug
+path = Path.join("traces", "my_server_#{request_id()}.json")
+Replayx.record(path, fn recorder_pid ->
+  {:ok, pid} = MyApp.MyServer.start_link(recorder_pid)  # or Registry.lookup(...)
+  GenServer.call(pid, {:handle_request, conn.params})
+end)
+```
+
+Replay from the CLI: `mix replay path/to/trace.json MyApp.MyServer`. Your GenServer must `use Replayx.GenServer` and use `Replayx.Clock` / `Replayx.Rand` for determinism. A future release may add a Plug helper that wraps this pattern and optionally stores request metadata in the trace.
+
+---
+
 ## Example
 
 The project includes a full example in `examples/record_and_replay.exs`:
@@ -202,8 +223,8 @@ It defines `Replayx.Examples.CrashingGenServer`, records a scenario (tick, tick,
 
 ## Scope and limitations (MVP)
 
-- **Supported:** Single GenServer, local node, record & replay crashes, CLI replay, ring buffer, timestamped traces, rotation, node identity in traces (distributed-aware), step-through replay (time-travel) via `mix replay --step`.
-- **Not supported:** Phoenix request replay, ETS/global state replay.
+- **Supported:** Single GenServer, local node, record & replay crashes, CLI replay, ring buffer, timestamped traces, rotation, node identity in traces (distributed-aware), step-through replay (time-travel) via `mix replay --step`, Phoenix/request replay via record-in-controller pattern (see [Phoenix / request replay](#phoenix--request-replay)).
+- **Not supported:** ETS/global state replay.
 
 For production, use **capture-on-crash** (ring buffer + flush on DOWN) with timestamped files and rotation so you get a bounded number of trace files per server. See [DESIGN.md](DESIGN.md) for architecture and prior art.
 
@@ -211,7 +232,7 @@ For production, use **capture-on-crash** (ring buffer + flush on DOWN) with time
 
 - **Distributed nodes** — Further: message ordering across nodes, multi-node replay guarantees (basic node identity in trace is implemented).
 - **Time-travel UI** — Full UI (e.g. browser) to step through traces; CLI step-through (`--step`) is implemented.
-- **Phoenix / request replay** — Integrate with Plug/Phoenix to record and replay HTTP requests that trigger GenServer behaviour.
+- **Phoenix / request replay** — Plug helper and request metadata in trace (pattern and replay from CLI are documented).
 - **ETS / global state** — Capture and replay ETS table snapshots or other shared state that affects determinism.
 - **More virtualization** — File I/O, network, or other side effects as optional recorded/replayed layers.
 
