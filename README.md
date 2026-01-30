@@ -172,6 +172,8 @@ use Replayx.GenServer,
 
 **Distributed nodes** — Trace metadata includes the recording node (`metadata["node"]`). For message events, when the sender is a PID, the trace includes `from_node` (sender’s node name) so cross-node calls are visible. You can replay on any node with the same code; message order is preserved. Further work (e.g. multi-node ordering guarantees) is in the roadmap.
 
+**Virtualization scope** — Replayx virtualizes **time** (`Replayx.Clock`: monotonic, system, `send_after`) and **randomness** (`Replayx.Rand`: uniform, seed). File I/O, network, and other side effects are **not** virtualized; if your callbacks depend on them, replay may diverge. A future release may add optional layers to record/replay file or network operations.
+
 ---
 
 ## CLI
@@ -242,7 +244,7 @@ For production, use **capture-on-crash** (ring buffer + flush on DOWN) with time
 - **Time-travel UI** — Full UI (e.g. browser) to step through traces; CLI step-through (`--step`) is implemented.
 - **Phoenix / request replay** — Plug helper and request metadata in trace (pattern and replay from CLI are documented).
 - **ETS / global state** — Optional ETS snapshot events (record/restore table contents); limitation and workarounds are documented.
-- **More virtualization** — File I/O, network, or other side effects as optional recorded/replayed layers.
+- **More virtualization** — File I/O, network, or other side effects as optional recorded/replayed layers (time and randomness are already virtualized via `Replayx.Clock` and `Replayx.Rand`).
 
 ### Production checklist
 
