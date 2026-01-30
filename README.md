@@ -209,6 +209,19 @@ For production, use **capture-on-crash** (ring buffer + flush on DOWN) with time
 - **Wait before returning from `record`** — Don’t return from `Replayx.record(module, fn ... end)` until the GenServer has finished handling the messages you sent (e.g. `Process.monitor` + `receive {:DOWN, ...}` after a message that causes a crash).
 - **Time and randomness** — Use `Replayx.Clock` (e.g. `monotonic_time/0`, `send_after/3`) and `Replayx.Rand` (e.g. `uniform/1`) in callbacks so they are recorded and replayed.
 
+### Supervision and the Recorder
+
+The **Recorder** is not started under your application’s supervision tree by default. The usual flow is:
+
+1. **Ad hoc recording (e.g. scripts, tests)** — You call `Replayx.record(module, fn recorder_pid -> ... end)`. Replayx starts the Recorder, runs your function, then stops the Recorder (or the Recorder stops itself when the monitored process crashes). The Recorder is short-lived and not a child of your app.
+
+2. **Production capture-on-crash** — If you want the Recorder to run for the lifetime of your app and capture crashes of one or more GenServers, you can start the Recorder under your supervision tree and pass its pid to your GenServers’ `start_link`. For example:
+   - Start one Recorder per trace “channel” (e.g. per module or per logical server type) under a supervisor.
+   - Your GenServer’s `init` receives the recorder pid (e.g. from application env or from a registry), calls `Replayx.Recorder.monitor(recorder_pid, self())`, and stores it in state.
+   - When the GenServer crashes, the Recorder (which is still alive under the supervisor) flushes the ring buffer to a timestamped file and then stops itself (so you may want to use a DynamicSupervisor or one-for-one restart if you need a new Recorder for the restarted GenServer).
+
+If the Recorder is **not** under your supervision tree (e.g. you only use `Replayx.record/2`), you don’t need to add it to your app. If you **do** supervise it, keep in mind that the Recorder exits with `:normal` after flushing on crash or on `stop/1`, so your supervisor will see a normal termination.
+
 ---
 
 ## Telemetry
