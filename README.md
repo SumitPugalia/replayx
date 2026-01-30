@@ -164,6 +164,8 @@ use Replayx.GenServer,
 
 **Trace format** — Default is JSON (human-readable). For smaller/faster I/O you can use binary (ETF): `Replayx.Trace.write(path, events, meta, format: :binary)` and `Replayx.Trace.read(path, format: :auto)` (auto-detects JSON vs binary by content).
 
+**Trace validation** — Check a trace file without full replay: `Replayx.Trace.valid?(path)` returns `{:ok, :valid}` or `{:error, reason}`. CLI: `mix replay --validate path.json Module` or `mix replay --validate Module`.
+
 ---
 
 ## CLI
@@ -172,6 +174,7 @@ use Replayx.GenServer,
 |---------|-------------|
 | `mix replay <Module>` | Replay the **latest** trace for that module (from `trace_dir`). |
 | `mix replay <path.json> <Module>` | Replay the given trace file. |
+| `mix replay --validate <path> <Module>` or `mix replay --validate <Module>` | Validate trace file (no replay). |
 | `mix replay.record <Module>` | Record the example CrashingGenServer (or instructions for other modules). |
 | `mix replay.record <path.json> <Module>` | Record to the given path. |
 | `mix git.install_hooks` | Install git pre-push hook (format, credo, dialyzer, test). |

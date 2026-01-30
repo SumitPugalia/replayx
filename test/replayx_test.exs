@@ -77,6 +77,17 @@ defmodule ReplayxTest do
       {_meta, read_events} = Replayx.Trace.read(path, format: :auto)
       assert read_events == events
     end
+
+    @tag :tmp_dir
+    test "valid? returns {:ok, :valid} for readable trace", %{tmp_dir: tmp_dir} do
+      path = Path.join(tmp_dir, "trace.json")
+      assert {:ok, :ok} = Replayx.Trace.write(path, [{:time_monotonic, 1}], nil)
+      assert {:ok, :valid} = Replayx.Trace.valid?(path)
+    end
+
+    test "valid? returns {:error, _} for nonexistent path" do
+      assert {:error, {:file, :enoent}} = Replayx.Trace.valid?("/nonexistent/trace.json")
+    end
   end
 
   describe "Recorder" do

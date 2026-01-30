@@ -14,27 +14,44 @@ defmodule Mix.Tasks.Replay do
 
   @impl Mix.Task
   def run(args) do
-    {_opts, args, _invalid} = OptionParser.parse(args, strict: [])
+    {opts, args, _invalid} = OptionParser.parse(args, strict: [validate: :boolean])
 
     case args do
       [path | module_name_parts] ->
-        if String.ends_with?(path, ".json") do
-          module = module_name_parts |> Enum.join(".") |> String.split(".") |> Module.concat()
-          ensure_example_loaded!(module)
-          replay(path, module)
-        else
-          module =
-            [path | module_name_parts] |> Enum.join(".") |> String.split(".") |> Module.concat()
-
-          ensure_example_loaded!(module)
-          path = Replayx.trace_path_for_replay(module)
-          replay(path, module)
-        end
+        {path, module} = resolve_path_and_module(path, module_name_parts)
+        ensure_example_loaded!(module)
+        if opts[:validate], do: validate_only(path), else: replay(path, module)
 
       [] ->
         Mix.raise(
-          "Usage: mix replay <Module.Name>  or  mix replay <path.json> <Module.Name>  (path optional: replays latest trace for module)"
+          "Usage: mix replay <Module.Name>  or  mix replay <path.json> <Module.Name>  (optional: --validate)"
         )
+    end
+  end
+
+  defp resolve_path_and_module(path, module_name_parts) do
+    if String.ends_with?(path, ".json") or String.ends_with?(path, ".etf") do
+      module = module_name_parts |> Enum.join(".") |> String.split(".") |> Module.concat()
+      {path, module}
+    else
+      module =
+        [path | module_name_parts] |> Enum.join(".") |> String.split(".") |> Module.concat()
+
+      {Replayx.trace_path_for_replay(module), module}
+    end
+  end
+
+  defp validate_only(path) do
+    unless File.exists?(path) do
+      Mix.raise("Trace file not found: #{path}")
+    end
+
+    case Replayx.Trace.valid?(path) do
+      {:ok, :valid} ->
+        Mix.shell().info("Trace file is valid: #{path}")
+
+      {:error, reason} ->
+        Mix.raise("Trace file invalid: #{inspect(reason)}")
     end
   end
 

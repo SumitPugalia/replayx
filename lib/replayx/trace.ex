@@ -205,6 +205,43 @@ defmodule Replayx.Trace do
   end
 
   @doc """
+  Validates a trace file without full replay: checks it can be read and has metadata + events list.
+  Returns `{:ok, :valid}` or `{:error, reason}`. Use to catch corrupt or incompatible traces early.
+  """
+  @spec valid?(String.t(), keyword()) :: {:ok, :valid} | {:error, term()}
+  def valid?(path, opts \\ []) do
+    case File.read(path) do
+      {:ok, bin} ->
+        format = Keyword.get(opts, :format, :auto)
+        format = if format == :auto, do: detect_format(bin), else: format
+
+        case format do
+          :binary -> validate_binary(bin)
+          _ -> validate_json(bin)
+        end
+
+      {:error, reason} ->
+        {:error, {:file, reason}}
+    end
+  end
+
+  defp validate_json(bin) do
+    doc = Jason.decode!(bin)
+    _ = Map.get(doc, "metadata", %{})
+    events = doc["events"] || []
+    if is_list(events), do: {:ok, :valid}, else: {:error, :invalid_events}
+  rescue
+    e -> {:error, {:decode, e}}
+  end
+
+  defp validate_binary(bin) do
+    %{metadata: _meta, events: events} = :erlang.binary_to_term(bin)
+    if is_list(events), do: {:ok, :valid}, else: {:error, :invalid_events}
+  rescue
+    e -> {:error, {:decode, e}}
+  end
+
+  @doc """
   Builds a unique trace file path with timestamp for production (no overwrite on restart).
   Ensures directory exists. Uses ISO8601-style timestamp (colons replaced with `-` for filesystem safety).
   """
