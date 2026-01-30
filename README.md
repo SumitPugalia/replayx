@@ -200,6 +200,15 @@ It defines `Replayx.Examples.CrashingGenServer`, records a scenario (tick, tick,
 
 For production, use **capture-on-crash** (ring buffer + flush on DOWN) with timestamped files and rotation so you get a bounded number of trace files per server. See [DESIGN.md](DESIGN.md) for architecture and prior art.
 
+### Production checklist
+
+- **`trace_buffer_size`** — Set large enough for the last N messages you care about before a crash (e.g. 20–50).
+- **`trace_dir`** — Use a dedicated directory (e.g. `"traces"`); timestamped files go there so restarts don’t overwrite.
+- **`trace_rotation`** — Set `[max_files: n]` and/or `[max_days: n]` to cap disk usage.
+- **`Replayx.Recorder.monitor(recorder_pid, self())`** — Call in `init` when recording so the buffer flushes on crash.
+- **Wait before returning from `record`** — Don’t return from `Replayx.record(module, fn ... end)` until the GenServer has finished handling the messages you sent (e.g. `Process.monitor` + `receive {:DOWN, ...}` after a message that causes a crash).
+- **Time and randomness** — Use `Replayx.Clock` (e.g. `monotonic_time/0`, `send_after/3`) and `Replayx.Rand` (e.g. `uniform/1`) in callbacks so they are recorded and replayed.
+
 ---
 
 ## Telemetry

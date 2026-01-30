@@ -43,6 +43,12 @@ defmodule Replayx.Examples.CrashingGenServer do
     {:noreply, %{state | ticks: state.ticks + 1}}
   end
 
+  # Example: Rand is recorded/replayed so replay is deterministic
+  def handle_info_impl(:roll, state) do
+    n = Replayx.Rand.uniform(10)
+    {:noreply, %{state | last_roll: n}}
+  end
+
   def handle_info_impl(:crash, state) do
     IO.puts("\n  [Replayx] State at crash: #{inspect(state)}\n")
     raise "replayx example crash"
@@ -50,6 +56,10 @@ defmodule Replayx.Examples.CrashingGenServer do
 
   def handle_info_impl(_msg, state), do: {:noreply, state}
 end
+
+# Optional: example using Replayx.Clock.send_after (virtualized timers)
+# In a callback: ref = Replayx.Clock.send_after(1000, self(), :timeout)
+# In replay mode the same ref and delay are consumed from the trace.
 
 # Run the demo only when this file is executed (mix run), not when required for tests/Mix tasks.
 run_demo? = is_nil(Process.get(:replayx_loading_module)) and Mix.env() != :test
