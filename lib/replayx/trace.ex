@@ -12,6 +12,7 @@ defmodule Replayx.Trace do
           | {:rand, float()}
           | {:rand_seed, {integer(), integer(), integer()}}
           | {:send_after, reference(), non_neg_integer()}
+          | {:state_snapshot, term()}
 
   @doc """
   Encodes a term for JSON storage (Base64 of term_to_binary).
@@ -63,6 +64,10 @@ defmodule Replayx.Trace do
     %{"type" => "send_after", "ref" => encode_term(ref), "delay_ms" => delay_ms}
   end
 
+  def event_to_map({:state_snapshot, state}) do
+    %{"type" => "state_snapshot", "state" => encode_term(state)}
+  end
+
   @doc """
   Converts a JSON map back to an event tuple.
   """
@@ -111,6 +116,10 @@ defmodule Replayx.Trace do
     {:send_after, decode_term(ref), delay_ms}
   end
 
+  def map_to_event(%{"type" => "state_snapshot", "state" => state}) do
+    {:state_snapshot, decode_term(state)}
+  end
+
   @doc """
   Builds metadata map for the trace (Elixir version, node).
   """
@@ -124,11 +133,15 @@ defmodule Replayx.Trace do
 
   @doc """
   Writes a trace to a JSON file.
+  Optional extra_metadata (e.g. %{"crash_reason" => "..."}) is merged into metadata.
   """
-  @spec write(String.t(), [event()]) :: :ok
-  def write(path, events) do
+  @spec write(String.t(), [event()], map() | nil) :: :ok
+  def write(path, events, extra_metadata \\ nil) do
+    base = metadata()
+    meta = if extra_metadata, do: Map.merge(base, extra_metadata), else: base
+
     doc = %{
-      "metadata" => metadata(),
+      "metadata" => meta,
       "events" => Enum.map(events, &event_to_map/1)
     }
 

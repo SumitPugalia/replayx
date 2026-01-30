@@ -34,13 +34,15 @@ defmodule Replayx.ReplayerState do
   end
 
   @doc """
-  Pops the next event and asserts it is a message. Returns {seq, kind, from, payload}.
+  Pops the next event and asserts it is a message. Skips state_snapshot events (used for debugging only).
+  Returns {seq, kind, from, payload} or :empty.
   """
   @spec pop_message(pid()) :: {non_neg_integer(), :call | :cast | :info, term(), term()} | :empty
   def pop_message(agent_pid) do
     case pop(agent_pid) do
       {:message, {seq, kind, from, payload}} -> {seq, kind, from, payload}
       :empty -> :empty
+      {:state_snapshot, _} -> pop_message(agent_pid)
       {other, _} -> raise "Replay: expected message event, got #{inspect(other)}"
     end
   end
@@ -53,4 +55,5 @@ defmodule Replayx.ReplayerState do
   defp event_to_type_value({:rand, v}), do: {:rand, v}
   defp event_to_type_value({:rand_seed, s}), do: {:rand_seed, s}
   defp event_to_type_value({:send_after, ref, d}), do: {:send_after, {ref, d}}
+  defp event_to_type_value({:state_snapshot, state}), do: {:state_snapshot, state}
 end

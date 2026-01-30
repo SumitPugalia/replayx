@@ -47,14 +47,26 @@ defmodule Replayx do
   @spec record(String.t() | module(), (pid() -> term())) :: term()
   def record(path_or_module, fun) when is_function(fun, 1) do
     path = trace_path(path_or_module)
-    {:ok, recorder_pid} = Replayx.Recorder.start_link(path)
+    opts = record_opts(path_or_module)
+    {:ok, recorder_pid} = Replayx.Recorder.start_link(path, opts)
 
     try do
       fun.(recorder_pid)
     after
-      Replayx.Recorder.stop(recorder_pid)
+      if Process.alive?(recorder_pid) do
+        try do
+          Replayx.Recorder.stop(recorder_pid)
+        catch
+          :exit, _ -> :ok
+        end
+      end
     end
   end
+
+  defp record_opts(path) when is_binary(path), do: []
+
+  defp record_opts(module) when is_atom(module),
+    do: [buffer_size: module.__replayx_trace_buffer_size__()]
 
   @doc """
   Replays the trace file with the given module. The module must use Replayx.GenServer

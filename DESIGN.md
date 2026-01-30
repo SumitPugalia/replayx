@@ -100,3 +100,47 @@ Replay:
 - First deterministic replay on BEAM at process level.
 - Leverages OTP semantics.
 - Enables time-travel debugging, chaos+replay, crash reproduction as a service.
+
+---
+
+## 9. Production Considerations (MVP vs. Production)
+
+**The current MVP is not designed for production “record everything.”**
+
+### Why “50 GenServers all writing trace files” is a problem
+
+- **I/O bottleneck**: Every message, time, and rand event is written. High-throughput processes would generate large volumes of writes.
+- **Unbounded growth**: Trace files grow until recording stops. No built-in rotation, sampling, or retention.
+- **Disk space**: Many processes × long sessions × large payloads can exhaust disk.
+- **Overhead**: Recording adds work (serialization, Recorder casts) on every callback.
+
+So: **do not run “record on” for all GenServers in production** with the current design.
+
+### How production use would differ (future work)
+
+| Concern | MVP (today) | Production-oriented approach |
+|--------|------------|------------------------------|
+| **What to record** | You start a recorder and one GenServer; everything is recorded until you stop. | **Selective**: record only specific processes (e.g. by name, by feature flag) or only when an error is likely (e.g. after a failure signal). |
+| **When to capture** | Manual: you call `Replayx.record(...)` and drive the scenario. | **On-error or on-demand**: start recording when a process is about to do something risky, or **dump trace on crash** (ring buffer in memory, flush to storage only when the process crashes). |
+| **Where it goes** | Single JSON file on disk, written when the recorder stops. | **Streaming / remote**: send events to a service (e.g. over the network), or write to a bounded buffer (e.g. ring buffer in memory) and persist only on crash or on demand. |
+| **Retention** | One file per recording; you manage deletion. | **Bounded**: max size or max events per trace, rotation, TTL, or “keep last N traces per process.” |
+| **Scale** | One process per recorder, local node. | **Sampling**: record 1% of processes or 1% of sessions; or record only processes that have crashed before (sticky sampling). |
+
+### Feasible production patterns (without changing the library today)
+
+1. **Reproduce in staging, not in prod**  
+   Use Replayx in dev/staging: reproduce a bug from logs or a crash report, then record a trace there and replay locally. No recording in production.
+
+2. **Capture on crash only (future)**  
+   Keep a small in-memory ring buffer of the last N events per process. When the process crashes, flush that buffer to a trace file (or send it to a service). Then replay later. This limits I/O and storage to “only when something went wrong.”
+
+3. **Explicit recording for a few processes**  
+   In production, enable recording only for a small set of critical or previously failing processes (e.g. via config or feature flag), with short sessions and strict retention (e.g. overwrite one file per process, or upload then delete).
+
+4. **Replay as a service**  
+   Production sends trace data (or a trace file) to a separate “replay” environment that runs Replayx to reproduce the crash. Recording in prod can stay minimal (e.g. on-crash dump); heavy replay runs offline.
+
+### Summary
+
+- **Today**: Replayx is aimed at **local debugging and reproduction** (single process, local file, manual record/replay). Using it as “every GenServer writes a trace file in prod” would be a bottleneck and is not supported by design.
+- **Production-ready use** would require selective recording, bounded buffers, on-crash or on-demand capture, and possibly streaming/remote storage—all of which are **out of scope for the current MVP** and left as future work.

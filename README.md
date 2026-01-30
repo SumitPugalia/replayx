@@ -80,6 +80,8 @@ If you don't set `trace_file`, the default is the module name (dots → undersco
 - Record & replay crashes, CLI replay
 - No distributed nodes, time-travel UI, Phoenix, or ETS replay
 
+**Production:** The current design is for **local debugging**, not “record everything in production.” Recording many GenServers to files would be an I/O bottleneck and unbounded growth. See [DESIGN.md](DESIGN.md) §9 for production considerations and feasible patterns (reproduce in staging, capture-on-crash, selective recording).
+
 See [DESIGN.md](DESIGN.md) for architecture and prior art.
 
 ## Development

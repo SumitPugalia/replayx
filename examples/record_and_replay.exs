@@ -21,6 +21,7 @@ defmodule Replayx.Examples.CrashingGenServer do
     state =
       case args do
         [recorder_pid] when is_pid(recorder_pid) ->
+          Replayx.Recorder.monitor(recorder_pid, self())
           Map.put(state, :replayx_recorder, recorder_pid)
 
         [{:replayx_replayer, agent_pid}] ->
