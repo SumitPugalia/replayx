@@ -79,6 +79,16 @@ defmodule ReplayxTest do
     end
 
     @tag :tmp_dir
+    test "gzip roundtrip (write gzip, read auto-detect)", %{tmp_dir: tmp_dir} do
+      path = Path.join(tmp_dir, "trace.json.gz")
+      events = [{:time_monotonic, 1}, {:message, 0, :info, nil, :hello}]
+      assert {:ok, :ok} = Replayx.Trace.write(path, events, nil, format: :json, gzip: true)
+      assert File.exists?(path)
+      {_meta, read_events} = Replayx.Trace.read(path, format: :auto, gzip: :auto)
+      assert read_events == events
+    end
+
+    @tag :tmp_dir
     test "valid? returns {:ok, :valid} for readable trace", %{tmp_dir: tmp_dir} do
       path = Path.join(tmp_dir, "trace.json")
       assert {:ok, :ok} = Replayx.Trace.write(path, [{:time_monotonic, 1}], nil)
