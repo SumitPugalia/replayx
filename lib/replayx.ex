@@ -46,8 +46,7 @@ defmodule Replayx do
   """
   @spec record(String.t() | module(), (pid() -> term())) :: term()
   def record(path_or_module, fun) when is_function(fun, 1) do
-    path = trace_path(path_or_module)
-    opts = record_opts(path_or_module)
+    {path, opts} = record_path_and_opts(path_or_module)
     {:ok, recorder_pid} = Replayx.Recorder.start_link(path, opts)
 
     try do
@@ -65,8 +64,14 @@ defmodule Replayx do
 
   defp record_opts(path) when is_binary(path), do: []
 
-  defp record_opts(module) when is_atom(module),
-    do: [buffer_size: module.__replayx_trace_buffer_size__()]
+  defp record_opts(module) when is_atom(module) do
+    [
+      buffer_size: module.__replayx_trace_buffer_size__(),
+      dir: module.__replayx_trace_dir__(),
+      base_prefix: module.__replayx_trace_base__(),
+      rotation: module.__replayx_trace_rotation__()
+    ]
+  end
 
   @doc """
   Replays the trace file with the given module. The module must use Replayx.GenServer
@@ -83,10 +88,34 @@ defmodule Replayx do
   end
 
   def replay(module) when is_atom(module) do
-    path = module.__replayx_trace_file__()
+    path = trace_path_for_replay(module)
     Replayx.Replayer.run(path, module)
   end
 
-  defp trace_path(path) when is_binary(path), do: path
-  defp trace_path(module) when is_atom(module), do: module.__replayx_trace_file__()
+  @doc """
+  Returns the path that `replay(module)` would use: latest timestamped trace in the module's trace_dir, or `trace_dir/trace_file` if none.
+  Use this when you need the path (e.g. for `mix replay Module` to replay the last file by default).
+  """
+  @spec trace_path_for_replay(module()) :: String.t()
+  def trace_path_for_replay(module) when is_atom(module) do
+    replay_path(module)
+  end
+
+  defp record_path_and_opts(path) when is_binary(path), do: {path, []}
+
+  defp record_path_and_opts(module) when is_atom(module) do
+    opts = record_opts(module)
+    base = module.__replayx_trace_base__()
+    {base, opts}
+  end
+
+  defp replay_path(module) when is_atom(module) do
+    dir = module.__replayx_trace_dir__()
+    base = module.__replayx_trace_base__()
+
+    case Replayx.Trace.latest_path(dir, base) do
+      nil -> Path.join(dir, module.__replayx_trace_file__())
+      path -> path
+    end
+  end
 end

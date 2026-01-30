@@ -4,8 +4,10 @@ defmodule Replayx.GenServer do
   Use this instead of `use GenServer` when you want record/replay.
 
   Options (optional):
-    * `:trace_file` – trace file path for this GenServer. If not set, defaults to the module name (dots → underscores, lowercased) + `.json`, e.g. `Replayx.Examples.CrashingGenServer` → `"replayx_examples_crashinggenserver.json"`.
-    * `:trace_buffer_size` – number of events (and state snapshots) to keep in a ring buffer for crash debugging. On crash, the buffer is flushed to the trace file. Default is 10.
+    * `:trace_file` – base trace filename for this GenServer. If not set, defaults to the module name (dots → underscores, lowercased) + `.json`, e.g. `Replayx.Examples.CrashingGenServer` → `"replayx_examples_crashinggenserver.json"`.
+    * `:trace_dir` – directory for timestamped trace files (production). Default `"traces"`. Each flush writes to `trace_dir/base_timestamp.json` so restarts do not overwrite.
+    * `:trace_buffer_size` – number of events (and state snapshots) to keep in a ring buffer for crash debugging. Default 10.
+    * `:trace_rotation` – keyword list for rotation after each write. `[max_files: 20]` keep last 20 files; `[max_days: 7]` delete older than 7 days; both allowed. Default `[]` (no rotation).
 
   In init, put `replayx_recorder` or `replayx_replayer` in your state so that
   callbacks can record or consume from the trace. For record: pass the recorder
@@ -21,6 +23,8 @@ defmodule Replayx.GenServer do
   defmacro __using__(opts) do
     explicit_trace_file = Keyword.get(opts || [], :trace_file)
     buffer_size = Keyword.get(opts || [], :trace_buffer_size, 10)
+    trace_dir = Keyword.get(opts || [], :trace_dir, "traces")
+    trace_rotation = Keyword.get(opts || [], :trace_rotation, [])
 
     quote do
       use GenServer
@@ -39,6 +43,21 @@ defmodule Replayx.GenServer do
           path ->
             path
         end
+      end
+
+      @doc false
+      def __replayx_trace_base__ do
+        __replayx_trace_file__() |> String.replace_suffix(".json", "")
+      end
+
+      @doc false
+      def __replayx_trace_dir__ do
+        unquote(trace_dir)
+      end
+
+      @doc false
+      def __replayx_trace_rotation__ do
+        unquote(trace_rotation)
       end
 
       @doc false

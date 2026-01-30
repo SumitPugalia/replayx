@@ -3,7 +3,8 @@ defmodule Mix.Tasks.Replay do
   @moduledoc """
   Replays a trace file deterministically using the given module.
 
-      mix replay trace.json MyApp.MyServer
+      mix replay MyApp.MyServer              # replays latest trace for that module (from trace_dir)
+      mix replay trace.json MyApp.MyServer  # replays the given trace file
 
   The module must use Replayx.GenServer and its init must accept
   `[{:replayx_replayer, agent_pid}]` and put `replayx_replayer` in state.
@@ -26,13 +27,13 @@ defmodule Mix.Tasks.Replay do
             [path | module_name_parts] |> Enum.join(".") |> String.split(".") |> Module.concat()
 
           ensure_example_loaded!(module)
-          path = module.__replayx_trace_file__()
+          path = Replayx.trace_path_for_replay(module)
           replay(path, module)
         end
 
       [] ->
         Mix.raise(
-          "Usage: mix replay [trace.json] <Module.Name>  (path optional if module has trace_file)"
+          "Usage: mix replay <Module.Name>  or  mix replay <path.json> <Module.Name>  (path optional: replays latest trace for module)"
         )
     end
   end
@@ -50,17 +51,28 @@ defmodule Mix.Tasks.Replay do
       Mix.raise("""
       Trace file not found: #{path}
 
-      Record a trace first, for example in IEx:
+      Record a trace first, for example:
 
-        Replayx.record("trace.json", fn recorder_pid ->
+        mix run examples/record_and_replay.exs
+
+      Or in IEx:
+
+        Replayx.record(Replayx.Examples.CrashingGenServer, fn recorder_pid ->
           {:ok, pid} = Replayx.Examples.CrashingGenServer.start_link(recorder_pid)
           send(pid, :tick)
           send(pid, :crash)
         end)
 
-      Then run: mix replay trace.json Replayx.Examples.CrashingGenServer
+      Then run: mix replay Replayx.Examples.CrashingGenServer  (replays latest)
+      Or:       mix replay traces/<file>.json Replayx.Examples.CrashingGenServer
       """)
     end
+
+    {_metadata, events} = Replayx.Trace.read(path)
+    summary_lines = Replayx.Trace.summary(events)
+    Mix.shell().info("")
+    Enum.each(summary_lines, &Mix.shell().info/1)
+    Mix.shell().info("")
 
     try do
       case Replayx.replay(path, module) do

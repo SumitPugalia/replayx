@@ -8,18 +8,29 @@ defmodule Replayx.Recorder do
 
   @type event :: Replayx.Trace.event()
 
-  defstruct path: nil, buffer: [], buffer_size: 10, seq: 0, monitored_ref: nil
+  defstruct dir: nil,
+            base_prefix: nil,
+            path: nil,
+            rotation: [],
+            buffer: [],
+            buffer_size: 10,
+            seq: 0,
+            monitored_ref: nil
 
   @doc """
-  Starts a recorder that will write to the given path when stopped or when the monitored process crashes.
-  Options:
-    * `:buffer_size` – number of events to keep in the ring buffer (default 10).
-  Returns `{:ok, pid}`. Pass this pid to your GenServer init and to `record_event/2`.
+  Starts a recorder that will write when stopped or when the monitored process crashes.
+  Two modes:
+    * Single path: `start_link("trace.json", buffer_size: 10)` – writes to that path (no timestamp, no rotation).
+    * Timestamped (production): pass opts with `:dir`, `:base_prefix`, and optionally `:rotation`. Each flush writes to `dir/base_prefix_<timestamp>.json` and applies rotation.
+  Options: `:buffer_size`, `:dir`, `:base_prefix`, `:rotation` (keyword list for `Replayx.Trace.rotate/3`).
   """
   @spec start_link(String.t(), keyword()) :: GenServer.on_start()
   def start_link(path, opts \\ []) when is_binary(path) do
     buffer_size = Keyword.get(opts, :buffer_size, 10)
-    GenServer.start_link(__MODULE__, {path, buffer_size}, [])
+    dir = Keyword.get(opts, :dir)
+    base_prefix = Keyword.get(opts, :base_prefix)
+    rotation = Keyword.get(opts, :rotation, [])
+    GenServer.start_link(__MODULE__, {path, buffer_size, dir, base_prefix, rotation}, [])
   end
 
   @doc """
@@ -56,8 +67,15 @@ defmodule Replayx.Recorder do
   end
 
   @impl GenServer
-  def init({path, buffer_size}) do
-    state = %__MODULE__{path: path, buffer_size: buffer_size}
+  def init({path, buffer_size, dir, base_prefix, rotation}) do
+    state = %__MODULE__{
+      path: path,
+      dir: dir,
+      base_prefix: base_prefix,
+      rotation: rotation,
+      buffer_size: buffer_size
+    }
+
     {:ok, state}
   end
 
@@ -98,6 +116,17 @@ defmodule Replayx.Recorder do
   defp flush_to_file(state, crash_reason) do
     events = Enum.reverse(state.buffer)
     metadata = if crash_reason, do: %{"crash_reason" => inspect(crash_reason)}, else: %{}
-    Replayx.Trace.write(state.path, events, metadata)
+    path = resolve_path(state)
+    Replayx.Trace.write(path, events, metadata)
+
+    if state.dir && state.base_prefix && state.rotation != [] do
+      Replayx.Trace.rotate(state.dir, state.base_prefix, state.rotation)
+    end
   end
+
+  defp resolve_path(%{dir: dir, base_prefix: base}) when is_binary(dir) and is_binary(base) do
+    Replayx.Trace.path_with_timestamp(dir, base)
+  end
+
+  defp resolve_path(state), do: state.path
 end

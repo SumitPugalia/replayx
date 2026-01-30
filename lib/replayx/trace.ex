@@ -160,4 +160,124 @@ defmodule Replayx.Trace do
     events = (doc["events"] || []) |> Enum.map(&map_to_event/1)
     {metadata, events}
   end
+
+  @doc """
+  Builds a unique trace file path with timestamp for production (no overwrite on restart).
+  Ensures directory exists. Uses ISO8601-style timestamp (colons replaced with `-` for filesystem safety).
+  """
+  @spec path_with_timestamp(String.t(), String.t()) :: String.t()
+  def path_with_timestamp(dir, base_prefix) do
+    File.mkdir_p!(dir)
+    ts = DateTime.utc_now() |> DateTime.to_iso8601(:basic)
+    Path.join(dir, "#{base_prefix}_#{ts}.json")
+  end
+
+  @doc """
+  Rotates trace files in `dir` matching `base_prefix_*.json`.
+  Options (keyword list):
+    * `:max_files` – keep at most this many newest files; delete older (default: no limit).
+    * `:max_days` – delete files older than this many days (default: no limit).
+  """
+  @spec rotate(String.t(), String.t(), keyword()) :: :ok
+  def rotate(dir, base_prefix, opts \\ []) do
+    max_files = Keyword.get(opts, :max_files)
+    max_days = Keyword.get(opts, :max_days)
+
+    if is_nil(max_files) and is_nil(max_days) do
+      :ok
+    else
+      pattern = Path.join(dir, "#{base_prefix}_*.json")
+      files = Path.wildcard(pattern)
+
+      if files == [] do
+        :ok
+      else
+        cutoff_time =
+          max_days &&
+            DateTime.utc_now()
+            |> DateTime.add(-max_days, :day)
+            |> DateTime.to_unix()
+
+        with_mtime =
+          Enum.map(files, fn f ->
+            {:ok, stat} = File.stat(f, time: :posix)
+            {f, stat.mtime}
+          end)
+
+        sorted = Enum.sort_by(with_mtime, fn {_, mtime} -> mtime end, :desc)
+
+        to_keep_count = max_files || length(sorted)
+        kept = Enum.take(sorted, to_keep_count)
+        beyond_count = Enum.drop(sorted, to_keep_count)
+
+        old_kept =
+          if cutoff_time,
+            do: Enum.filter(kept, fn {_, mtime} -> mtime < cutoff_time end),
+            else: []
+
+        to_delete = beyond_count ++ old_kept
+
+        Enum.each(to_delete, fn {path, _} -> File.rm(path) end)
+        :ok
+      end
+    end
+  end
+
+  @doc """
+  Builds a human-readable summary of the trace: each message event paired with the state after it.
+  Used by replay CLI to show the last N events and states from the ring buffer.
+  """
+  @spec summary([event()]) :: [String.t()]
+  def summary(events) do
+    pairs = pair_messages_with_state(events)
+    count = length(pairs)
+    header = ["Trace summary (#{count} message(s) from ring buffer):", ""]
+
+    lines =
+      Enum.map(pairs, fn {seq, kind, payload, state_after} ->
+        payload_str = inspect(payload)
+        state_str = if state_after, do: inspect(state_after), else: "(crash, no state)"
+        "  seq #{seq} | #{kind} | #{payload_str} → state: #{state_str}"
+      end)
+
+    header ++ lines
+  end
+
+  defp pair_messages_with_state(events) do
+    events
+    |> Enum.reduce({[], nil}, fn
+      {:message, seq, kind, _from, payload}, {acc, _} ->
+        {[{seq, kind, payload, nil} | acc], {seq, kind, payload}}
+
+      {:state_snapshot, state}, {[{seq, kind, payload, nil} | rest], _} ->
+        {[{seq, kind, payload, state} | rest], nil}
+
+      {:state_snapshot, _}, {acc, _} ->
+        {acc, nil}
+
+      _, acc ->
+        acc
+    end)
+    |> elem(0)
+    |> Enum.reverse()
+  end
+
+  @doc """
+  Returns the path to the newest trace file in `dir` matching `base_prefix_*.json`, or nil if none.
+  Used by `replay(module)` to pick the latest trace when using timestamped rotation.
+  """
+  @spec latest_path(String.t(), String.t()) :: String.t() | nil
+  def latest_path(dir, base_prefix) do
+    pattern = Path.join(dir, "#{base_prefix}_*.json")
+
+    Path.wildcard(pattern)
+    |> Enum.sort_by(
+      fn f ->
+        {:ok, stat} = File.stat(f, time: :posix)
+        stat.mtime
+      end,
+      :desc
+    )
+    |> List.first()
+  end
 end

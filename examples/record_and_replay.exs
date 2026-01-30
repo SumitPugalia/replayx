@@ -2,14 +2,15 @@
 # Run with: mix run examples/record_and_replay.exs
 #
 # Defines Replayx.Examples.CrashingGenServer and runs record + replay.
-# Default trace file: replayx_examples_crashinggenserver.json (from module name).
+# Traces are written to traces/<module_base>_<timestamp>.json (production-safe; no overwrite on restart).
 
 defmodule Replayx.Examples.CrashingGenServer do
   @moduledoc """
   Example GenServer for Replayx record/replay demo.
   Handles :tick (increments counter) and :crash (raises).
   """
-  use Replayx.GenServer
+  # Buffer must fit the scenario (3 ticks + :state + :crash + time/snapshot events) so replay sees full state.
+  use Replayx.GenServer, trace_buffer_size: 20
 
   def start_link(recorder_pid) when is_pid(recorder_pid) do
     GenServer.start_link(__MODULE__, [recorder_pid], [])
@@ -55,14 +56,19 @@ run_demo? = is_nil(Process.get(:replayx_loading_module)) and Mix.env() != :test
 
 if run_demo? do
   module = Replayx.Examples.CrashingGenServer
-  trace_path = module.__replayx_trace_file__()
+  trace_dir = module.__replayx_trace_dir__()
+  trace_base = module.__replayx_trace_base__()
 
-  IO.puts("=== Recording to #{trace_path} (from #{inspect(module)}) ===")
+  IO.puts(
+    "=== Recording to #{trace_dir}/#{trace_base}_<timestamp>.json (from #{inspect(module)}) ==="
+  )
+
   IO.puts("Scenario: :tick, :tick, :state, then :crash. State at crash will be logged.")
   IO.puts("")
 
   Replayx.record(module, fn recorder_pid ->
     {:ok, pid} = module.start_link(recorder_pid)
+    send(pid, :tick)
     send(pid, :tick)
     send(pid, :tick)
     GenServer.call(pid, :state)
@@ -75,7 +81,10 @@ if run_demo? do
     end
   end)
 
-  IO.puts("Trace written to #{trace_path}")
+  IO.puts(
+    "Trace written to #{trace_dir}/ (timestamped). Replay with: mix replay #{inspect(module)}"
+  )
+
   IO.puts("")
   IO.puts("=== Replaying ===")
 

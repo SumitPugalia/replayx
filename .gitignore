@@ -26,5 +26,6 @@ replayx-*.tar
 # Temporary files, for example, from tests.
 /tmp/
 
-# Trace files (recorded by Replayx).
+# Trace files (recorded by Replayx; timestamped files go under traces/).
 *.json
+/traces/
