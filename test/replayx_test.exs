@@ -68,4 +68,72 @@ defmodule ReplayxTest do
       assert events == [{:time_monotonic, 123}]
     end
   end
+
+  describe "Telemetry" do
+    @tag :tmp_dir
+    test "emits trace_written when recorder flushes", %{tmp_dir: tmp_dir} do
+      path = Path.join(tmp_dir, "telemetry_trace.json")
+      id = "replayx-test-trace-#{System.unique_integer([:positive])}"
+      parent = self()
+
+      :telemetry.attach(
+        id,
+        [:replayx, :recorder, :trace_written],
+        fn _name, measurements, metadata, _config ->
+          send(parent, {:trace_written, measurements, metadata})
+        end,
+        nil
+      )
+
+      {:ok, pid} = Replayx.Recorder.start_link(path)
+      Replayx.Recorder.record_event(pid, {:time_monotonic, 1})
+      Replayx.Recorder.stop(pid)
+
+      assert_receive {:trace_written, %{event_count: 1}, %{path: ^path, crash_reason: nil}}
+      :telemetry.detach(id)
+    end
+
+    @tag :tmp_dir
+    test "emits replayer start and stop on replay", %{tmp_dir: tmp_dir} do
+      path = Path.join(tmp_dir, "replay_telemetry.json")
+
+      Replayx.record(path, fn recorder_pid ->
+        {:ok, pid} = CrashingGenServer.start_link(recorder_pid)
+        send(pid, :tick)
+        # wait for tick to be processed
+        GenServer.call(pid, :state)
+        Replayx.Recorder.stop(recorder_pid)
+      end)
+
+      id_start = "replayx-test-start-#{System.unique_integer([:positive])}"
+      id_stop = "replayx-test-stop-#{System.unique_integer([:positive])}"
+      parent = self()
+
+      :telemetry.attach(
+        id_start,
+        [:replayx, :replayer, :start],
+        fn _name, _m, metadata, _config ->
+          send(parent, {:replay_start, metadata})
+        end,
+        nil
+      )
+
+      :telemetry.attach(
+        id_stop,
+        [:replayx, :replayer, :stop],
+        fn _name, _m, metadata, _config ->
+          send(parent, {:replay_stop, metadata})
+        end,
+        nil
+      )
+
+      assert {:ok, _} = Replayx.replay(path, CrashingGenServer)
+
+      assert_receive {:replay_start, %{path: ^path, module: CrashingGenServer}}
+      assert_receive {:replay_stop, %{path: ^path, module: CrashingGenServer, result: {:ok, _}}}
+
+      :telemetry.detach(id_start)
+      :telemetry.detach(id_stop)
+    end
+  end
 end

@@ -119,6 +119,12 @@ defmodule Replayx.Recorder do
     path = resolve_path(state)
     Replayx.Trace.write(path, events, metadata)
 
+    :telemetry.execute(
+      [:replayx, :recorder, :trace_written],
+      %{event_count: length(events)},
+      %{path: path, crash_reason: crash_reason}
+    )
+
     if state.dir && state.base_prefix && state.rotation != [] do
       Replayx.Trace.rotate(state.dir, state.base_prefix, state.rotation)
     end

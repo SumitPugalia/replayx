@@ -13,19 +13,36 @@ defmodule Replayx.Replayer do
   """
   @spec run(String.t(), module()) :: {:ok, term()} | {:error, term()}
   def run(trace_path, module) do
+    :telemetry.execute([:replayx, :replayer, :start], %{}, %{path: trace_path, module: module})
+
     {_metadata, events} = Replayx.Trace.read(trace_path)
     {:ok, agent_pid} = Replayx.ReplayerState.start_link(events)
     Process.put(:replayx_replayer, agent_pid)
     Process.delete(:replayx_recorder)
 
-    try do
-      case module.init([{:replayx_replayer, agent_pid}]) do
-        {:ok, state} -> replay_loop(module, state, agent_pid)
-        other -> {:error, {:init_failed, other}}
+    result =
+      try do
+        case module.init([{:replayx_replayer, agent_pid}]) do
+          {:ok, state} -> replay_loop(module, state, agent_pid)
+          other -> {:error, {:init_failed, other}}
+        end
+      rescue
+        e ->
+          {:error, {:crash, e, __STACKTRACE__}}
+      after
+        Process.delete(:replayx_replayer)
+        Agent.stop(agent_pid)
       end
-    after
-      Process.delete(:replayx_replayer)
-      Agent.stop(agent_pid)
+
+    :telemetry.execute(
+      [:replayx, :replayer, :stop],
+      %{},
+      %{path: trace_path, module: module, result: result}
+    )
+
+    case result do
+      {:error, {:crash, e, stack}} -> reraise e, stack
+      other -> other
     end
   end
 

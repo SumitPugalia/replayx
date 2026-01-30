@@ -196,6 +196,31 @@ For production, use **capture-on-crash** (ring buffer + flush on DOWN) with time
 
 ---
 
+## Telemetry
+
+Replayx emits [Telemetry](https://hexdocs.pm/telemetry) events so you can hook metrics or logging:
+
+| Event | When | Measurements | Metadata |
+|-------|------|--------------|----------|
+| `[:replayx, :recorder, :trace_written]` | After a trace is written (flush on stop or crash) | `event_count` | `path`, `crash_reason` (nil if normal stop) |
+| `[:replayx, :replayer, :start]` | When replay starts | — | `path`, `module` |
+| `[:replayx, :replayer, :stop]` | When replay finishes (success or crash) | — | `path`, `module`, `result` (`{:ok, state}` or `{:error, reason}`) |
+
+Example: attach to log or metrics:
+
+```elixir
+:telemetry.attach(
+  "replayx-trace-written",
+  [:replayx, :recorder, :trace_written],
+  fn _name, measurements, metadata, _config ->
+    Logger.info("Trace written", path: metadata.path, event_count: measurements.event_count, crash: metadata.crash_reason)
+  end,
+  nil
+)
+```
+
+---
+
 ## Development
 
 - `mix test` — run tests  
