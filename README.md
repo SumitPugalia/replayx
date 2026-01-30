@@ -162,6 +162,7 @@ use Replayx.GenServer,
 - **Trace summary** — Before replay runs, the CLI prints the last N messages and the state after each (from the ring buffer). Use this to see exactly what led to the crash.
 - **Latest trace** — `mix replay MyServer` and `Replayx.replay(MyServer)` use the **newest** file in `trace_dir` matching `<base>_*.json`. To replay a specific file, pass the path.
 - **Determinism** — Replay feeds the same messages in the same order and supplies the same time/randomness from the trace. If your callbacks use only `Replayx.Clock` and `Replayx.Rand` for time/randomness, the crash reproduces.
+- **Step-through (time-travel)** — Use `mix replay --step path Module` or `mix replay --step Module` to pause after each message, print payload and state, then continue (Enter) or stop (`q`+Enter). From code, pass `step_fun: fn seq, kind, payload, state -> ... end` to `Replayx.Replayer.run/3`; return `:continue` or `:stop`.
 
 **Trace format** — Default is JSON (human-readable). For smaller/faster I/O you can use binary (ETF): `Replayx.Trace.write(path, events, meta, format: :binary)` and `Replayx.Trace.read(path, format: :auto)` (auto-detects JSON vs binary by content). **Optional gzip**: pass `gzip: true` when writing; when reading, gzip is auto-detected by magic bytes, or pass `gzip: true` explicitly. Use `.json.gz` or `.etf.gz` extensions for gzipped traces.
 
@@ -179,6 +180,7 @@ use Replayx.GenServer,
 |---------|-------------|
 | `mix replay <Module>` | Replay the **latest** trace for that module (from `trace_dir`). |
 | `mix replay <path.json> <Module>` | Replay the given trace file. |
+| `mix replay --step <path> <Module>` or `mix replay --step <Module>` | Step-through replay (time-travel): pause after each message, show payload and state; Enter to continue, `q`+Enter to stop. |
 | `mix replay --validate <path> <Module>` or `mix replay --validate <Module>` | Validate trace file (no replay). |
 | `mix replay.record <Module>` | Record the example CrashingGenServer (or instructions for other modules). |
 | `mix replay.record <path.json> <Module>` | Record to the given path. |
@@ -200,15 +202,15 @@ It defines `Replayx.Examples.CrashingGenServer`, records a scenario (tick, tick,
 
 ## Scope and limitations (MVP)
 
-- **Supported:** Single GenServer, local node, record & replay crashes, CLI replay, ring buffer, timestamped traces, rotation, node identity in traces (distributed-aware).
-- **Not supported:** Time-travel UI, Phoenix request replay, ETS/global state replay.
+- **Supported:** Single GenServer, local node, record & replay crashes, CLI replay, ring buffer, timestamped traces, rotation, node identity in traces (distributed-aware), step-through replay (time-travel) via `mix replay --step`.
+- **Not supported:** Phoenix request replay, ETS/global state replay.
 
 For production, use **capture-on-crash** (ring buffer + flush on DOWN) with timestamped files and rotation so you get a bounded number of trace files per server. See [DESIGN.md](DESIGN.md) for architecture and prior art.
 
 ### Future scope / Roadmap
 
 - **Distributed nodes** — Further: message ordering across nodes, multi-node replay guarantees (basic node identity in trace is implemented).
-- **Time-travel UI** — Inspect and step through trace events in a UI instead of full replay.
+- **Time-travel UI** — Full UI (e.g. browser) to step through traces; CLI step-through (`--step`) is implemented.
 - **Phoenix / request replay** — Integrate with Plug/Phoenix to record and replay HTTP requests that trigger GenServer behaviour.
 - **ETS / global state** — Capture and replay ETS table snapshots or other shared state that affects determinism.
 - **More virtualization** — File I/O, network, or other side effects as optional recorded/replayed layers.

@@ -81,16 +81,28 @@ defmodule Replayx do
   You can pass either a path and module, or just the module:
   - `replay(path, module)` – use `path` as the trace file.
   - `replay(module)` – use the module's default trace file from `use Replayx.GenServer, trace_file: "..."`.
+  - `replay(path, module, opts)` – same with options (e.g. `step_fun` for step-through).
   """
   @spec replay(String.t(), module()) :: {:ok, term()} | {:error, term()}
   def replay(path, module) when is_binary(path) do
-    Replayx.Replayer.run(path, module)
+    Replayx.Replayer.run(path, module, [])
   end
 
   @spec replay(module()) :: {:ok, term()} | {:error, term()}
   def replay(module) when is_atom(module) do
     path = trace_path_for_replay(module)
-    Replayx.Replayer.run(path, module)
+    Replayx.Replayer.run(path, module, [])
+  end
+
+  @spec replay(String.t(), module(), keyword()) :: {:ok, term()} | {:error, term()}
+  def replay(path, module, opts) when is_binary(path) and is_list(opts) do
+    Replayx.Replayer.run(path, module, opts)
+  end
+
+  @spec replay(module(), keyword()) :: {:ok, term()} | {:error, term()}
+  def replay(module, opts) when is_atom(module) and is_list(opts) do
+    path = trace_path_for_replay(module)
+    Replayx.Replayer.run(path, module, opts)
   end
 
   @doc """

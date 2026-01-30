@@ -48,10 +48,6 @@ defmodule Replayx.Trace do
     if from_node, do: Map.put(base, "from_node", from_node), else: base
   end
 
-  defp sender_node(pid) when is_pid(pid), do: node(pid) |> to_string()
-  defp sender_node({pid, _}) when is_pid(pid), do: node(pid) |> to_string()
-  defp sender_node(_), do: nil
-
   def event_to_map({:time_monotonic, value}) do
     %{"type" => "time_monotonic", "value" => value}
   end
@@ -75,6 +71,10 @@ defmodule Replayx.Trace do
   def event_to_map({:state_snapshot, state}) do
     %{"type" => "state_snapshot", "state" => encode_term(state)}
   end
+
+  defp sender_node(pid) when is_pid(pid), do: node(pid) |> to_string()
+  defp sender_node({pid, _}) when is_pid(pid), do: node(pid) |> to_string()
+  defp sender_node(_), do: nil
 
   @doc """
   Converts a JSON map back to an event tuple.

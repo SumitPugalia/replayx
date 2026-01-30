@@ -14,17 +14,18 @@ defmodule Mix.Tasks.Replay do
 
   @impl Mix.Task
   def run(args) do
-    {opts, args, _invalid} = OptionParser.parse(args, strict: [validate: :boolean])
+    {opts, args, _invalid} =
+      OptionParser.parse(args, strict: [validate: :boolean, step: :boolean])
 
     case args do
       [path | module_name_parts] ->
         {path, module} = resolve_path_and_module(path, module_name_parts)
         ensure_example_loaded!(module)
-        if opts[:validate], do: validate_only(path), else: replay(path, module)
+        if opts[:validate], do: validate_only(path), else: replay(path, module, opts)
 
       [] ->
         Mix.raise(
-          "Usage: mix replay <Module.Name>  or  mix replay <path.json> <Module.Name>  (optional: --validate)"
+          "Usage: mix replay <Module.Name>  or  mix replay <path.json> <Module.Name>  (optional: --validate, --step)"
         )
     end
   end
@@ -63,7 +64,7 @@ defmodule Mix.Tasks.Replay do
     end
   end
 
-  defp replay(path, module) do
+  defp replay(path, module, opts) do
     unless File.exists?(path) do
       Mix.raise("""
       Trace file not found: #{path}
@@ -91,8 +92,15 @@ defmodule Mix.Tasks.Replay do
     Enum.each(summary_lines, &Mix.shell().info/1)
     Mix.shell().info("")
 
+    replay_opts =
+      if opts[:step] do
+        [step_fun: step_fun()]
+      else
+        []
+      end
+
     try do
-      case Replayx.replay(path, module) do
+      case Replayx.replay(path, module, replay_opts) do
         {:ok, state} ->
           Mix.shell().info("Replay completed. Final state: #{inspect(state)}")
 
@@ -111,6 +119,15 @@ defmodule Mix.Tasks.Replay do
         """)
 
         Mix.shell().info("Exception: #{Exception.message(e)}")
+    end
+  end
+
+  defp step_fun do
+    fn seq, kind, payload, state ->
+      Mix.shell().info("  [step] seq #{seq} | #{kind} | payload: #{inspect(payload)}")
+      Mix.shell().info("         state after: #{inspect(state)}")
+      line = IO.gets("\n  Press Enter to continue, q+Enter to stop: ") |> String.trim()
+      if String.downcase(line) == "q", do: :stop, else: :continue
     end
   end
 end
