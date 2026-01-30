@@ -45,6 +45,7 @@ defmodule Replayx.GenServer do
   end
 
   @doc false
+  @spec instrument_call(module(), term(), term(), term()) :: term()
   def instrument_call(module, msg, from, state) do
     set_process_dict(state)
     maybe_record_message(state, :call, from, msg)
@@ -52,6 +53,7 @@ defmodule Replayx.GenServer do
   end
 
   @doc false
+  @spec instrument_cast(module(), term(), term()) :: term()
   def instrument_cast(module, msg, state) do
     set_process_dict(state)
     maybe_record_message(state, :cast, nil, msg)
@@ -59,6 +61,7 @@ defmodule Replayx.GenServer do
   end
 
   @doc false
+  @spec instrument_info(module(), term(), term()) :: term()
   def instrument_info(module, msg, state) do
     set_process_dict(state)
     maybe_record_message(state, :info, nil, msg)

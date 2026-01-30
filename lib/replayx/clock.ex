@@ -82,7 +82,7 @@ defmodule Replayx.Clock do
 
   defp pop_send_after_ref(agent_pid) do
     case Replayx.ReplayerState.pop(agent_pid) do
-      {:send_after, ref, _delay_ms} -> ref
+      {:send_after, {ref, _delay_ms}} -> ref
       {other, _} -> raise "Replay divergence: expected send_after, got #{inspect(other)}"
       :empty -> raise "Replay divergence: no send_after event"
     end

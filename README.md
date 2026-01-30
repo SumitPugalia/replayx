@@ -75,6 +75,12 @@ mix replay trace.json MyServer
 
 See [DESIGN.md](DESIGN.md) for architecture and prior art.
 
+## Development
+
+- `mix test` — run tests
+- `mix credo --strict` — static analysis (style and consistency)
+- `mix dialyzer` — type checking (builds PLT on first run)
+
 ## License
 
 Apache 2.0

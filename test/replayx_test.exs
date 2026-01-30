@@ -1,6 +1,8 @@
 defmodule ReplayxTest do
   use ExUnit.Case, async: false
 
+  alias Replayx.Examples.CrashingGenServer
+
   doctest Replayx
 
   describe "record and replay" do
@@ -9,14 +11,14 @@ defmodule ReplayxTest do
       path = Path.join(tmp_dir, "trace.json")
 
       Replayx.record(path, fn recorder_pid ->
-        {:ok, pid} = Replayx.Examples.CrashingGenServer.start_link(recorder_pid)
+        {:ok, pid} = CrashingGenServer.start_link(recorder_pid)
         send(pid, :tick)
         send(pid, :tick)
         GenServer.call(pid, :state)
       end)
 
       assert File.exists?(path)
-      assert {:ok, _state} = Replayx.replay(path, Replayx.Examples.CrashingGenServer)
+      assert {:ok, _state} = Replayx.replay(path, CrashingGenServer)
     end
 
     @tag :tmp_dir
@@ -24,7 +26,7 @@ defmodule ReplayxTest do
       path = Path.join(tmp_dir, "trace_crash.json")
 
       Replayx.record(path, fn recorder_pid ->
-        {:ok, pid} = Replayx.Examples.CrashingGenServer.start_link(recorder_pid)
+        {:ok, pid} = CrashingGenServer.start_link(recorder_pid)
         Process.unlink(pid)
         ref = Process.monitor(pid)
         send(pid, :tick)
@@ -33,7 +35,7 @@ defmodule ReplayxTest do
       end)
 
       assert_raise RuntimeError, ~r/replayx example crash/, fn ->
-        Replayx.replay(path, Replayx.Examples.CrashingGenServer)
+        Replayx.replay(path, CrashingGenServer)
       end
     end
   end

@@ -38,29 +38,50 @@ defmodule Replayx.Replayer do
         {:ok, state}
 
       {_seq, :call, from, payload} ->
-        case module.handle_call_impl(payload, from, state) do
-          {:reply, _reply, new_state} -> replay_loop(module, new_state, agent_pid)
-          {:reply, _reply, new_state, _timeout} -> replay_loop(module, new_state, agent_pid)
-          {:stop, _reason, _reply, new_state} -> {:ok, new_state}
-          {:stop, _reason, new_state} -> {:ok, new_state}
-          other -> raise "Replay: handle_call_impl returned unexpected #{inspect(other)}"
+        case apply_call_result(module, payload, from, state) do
+          {:continue, new_state} -> replay_loop(module, new_state, agent_pid)
+          {:halt, new_state} -> {:ok, new_state}
         end
 
       {_seq, :cast, _from, payload} ->
-        case module.handle_cast_impl(payload, state) do
-          {:noreply, new_state} -> replay_loop(module, new_state, agent_pid)
-          {:noreply, new_state, _timeout} -> replay_loop(module, new_state, agent_pid)
-          {:stop, _reason, new_state} -> {:ok, new_state}
-          other -> raise "Replay: handle_cast_impl returned unexpected #{inspect(other)}"
+        case apply_cast_result(module, payload, state) do
+          {:continue, new_state} -> replay_loop(module, new_state, agent_pid)
+          {:halt, new_state} -> {:ok, new_state}
         end
 
       {_seq, :info, _from, payload} ->
-        case module.handle_info_impl(payload, state) do
-          {:noreply, new_state} -> replay_loop(module, new_state, agent_pid)
-          {:noreply, new_state, _timeout} -> replay_loop(module, new_state, agent_pid)
-          {:stop, _reason, new_state} -> {:ok, new_state}
-          other -> raise "Replay: handle_info_impl returned unexpected #{inspect(other)}"
+        case apply_info_result(module, payload, state) do
+          {:continue, new_state} -> replay_loop(module, new_state, agent_pid)
+          {:halt, new_state} -> {:ok, new_state}
         end
+    end
+  end
+
+  defp apply_call_result(module, payload, from, state) do
+    case module.handle_call_impl(payload, from, state) do
+      {:reply, _reply, new_state} -> {:continue, new_state}
+      {:reply, _reply, new_state, _timeout} -> {:continue, new_state}
+      {:stop, _reason, _reply, new_state} -> {:halt, new_state}
+      {:stop, _reason, new_state} -> {:halt, new_state}
+      other -> raise "Replay: handle_call_impl returned unexpected #{inspect(other)}"
+    end
+  end
+
+  defp apply_cast_result(module, payload, state) do
+    case module.handle_cast_impl(payload, state) do
+      {:noreply, new_state} -> {:continue, new_state}
+      {:noreply, new_state, _timeout} -> {:continue, new_state}
+      {:stop, _reason, new_state} -> {:halt, new_state}
+      other -> raise "Replay: handle_cast_impl returned unexpected #{inspect(other)}"
+    end
+  end
+
+  defp apply_info_result(module, payload, state) do
+    case module.handle_info_impl(payload, state) do
+      {:noreply, new_state} -> {:continue, new_state}
+      {:noreply, new_state, _timeout} -> {:continue, new_state}
+      {:stop, _reason, new_state} -> {:halt, new_state}
+      other -> raise "Replay: handle_info_impl returned unexpected #{inspect(other)}"
     end
   end
 end

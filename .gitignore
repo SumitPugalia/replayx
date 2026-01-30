@@ -20,7 +20,8 @@ erl_crash.dump
 *.ez
 
 # Ignore package tarball (built via "mix hex.build").
-deterministic_replay-*.tar
+replayx-*.tar
+/priv/plts/
 
 # Temporary files, for example, from tests.
 /tmp/

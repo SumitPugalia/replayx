@@ -56,12 +56,16 @@ defmodule Replayx.Rand do
     case Process.get(:replayx_recorder) do
       nil ->
         case Process.get(:replayx_replayer) do
-          nil -> :rand.seed(:exsss, seed)
-          agent_pid -> pop_rand_seed(agent_pid)
+          nil ->
+            _ = :rand.seed(:exsss, seed)
+            :ok
+
+          agent_pid ->
+            pop_rand_seed(agent_pid)
         end
 
       recorder_pid ->
-        :rand.seed(:exsss, seed)
+        _ = :rand.seed(:exsss, seed)
         Replayx.Recorder.record_event(recorder_pid, {:rand_seed, seed})
         :ok
     end
@@ -87,7 +91,7 @@ defmodule Replayx.Rand do
   defp pop_rand_seed(agent_pid) do
     case Replayx.ReplayerState.pop(agent_pid) do
       {:rand_seed, seed} ->
-        :rand.seed(:exsss, seed)
+        _ = :rand.seed(:exsss, seed)
         :ok
 
       {other, _} ->
