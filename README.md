@@ -245,6 +245,7 @@ For production, use **capture-on-crash** (ring buffer + flush on DOWN) with time
 - **Phoenix / request replay** — Plug helper and request metadata in trace (pattern and replay from CLI are documented).
 - **ETS / global state** — Optional ETS snapshot events (record/restore table contents); limitation and workarounds are documented.
 - **More virtualization** — File I/O, network, or other side effects as optional recorded/replayed layers (time and randomness are already virtualized via `Replayx.Clock` and `Replayx.Rand`).
+- **DynamicSupervisor** — One recorder per child, PID in trace filename; pattern documented in [Supervision and the Recorder](#supervision-and-the-recorder).
 
 ### Production checklist
 
@@ -267,6 +268,10 @@ The **Recorder** is not started under your application’s supervision tree by d
    - When the GenServer crashes, the Recorder (which is still alive under the supervisor) flushes the ring buffer to a timestamped file and then stops itself (so you may want to use a DynamicSupervisor or one-for-one restart if you need a new Recorder for the restarted GenServer).
 
 If the Recorder is **not** under your supervision tree (e.g. you only use `Replayx.record/2`), you don’t need to add it to your app. If you **do** supervise it, keep in mind that the Recorder exits with `:normal` after flushing on crash or on `stop/1`, so your supervisor will see a normal termination.
+
+### DynamicSupervisor and multiple instances
+
+When you run **multiple instances** of the same GenServer (e.g. under a `DynamicSupervisor`), use **one Recorder per child**. Start a Recorder with `dir` and `base_prefix` (no single `path`); when each child's `init` runs, it calls `Replayx.Recorder.monitor(recorder_pid, self())`. On crash or stop, the recorder flushes to a **timestamped path that includes the monitored PID** (e.g. `traces/my_server_0_123_0_20250131T123456Z.json`), so each instance gets a distinct trace file. Start the Recorder as a sibling of the GenServer under the same one-for-one or rest-for-one supervisor, or under a `DynamicSupervisor` that starts `{Recorder, GenServer}` pairs. When a child crashes, its Recorder flushes and exits normally; the supervisor can restart the child (and a new Recorder) if desired.
 
 ---
 
