@@ -140,7 +140,7 @@ use Replayx.GenServer,
   trace_rotation: [max_files: 20, max_days: 7]
 ```
 
-- **Timestamped files** — When using a module with `trace_dir`, each flush writes to `trace_dir/<base>_<timestamp>.json` (e.g. `traces/my_server_20250131T123456Z.json`). Restarts do not overwrite previous traces.
+- **Timestamped files** — When using a module with `trace_dir`, each flush writes to `trace_dir/<base>_<timestamp>.json` (e.g. `traces/my_server_20250131T123456Z.json`). If the recorder is monitoring a process (you called `Replayx.Recorder.monitor(recorder_pid, self())`), the filename includes the **monitored PID** (e.g. `traces/my_server_0_123_0_20250131T123456Z.json`) so multiple instances of the same GenServer get distinct trace files when they fail.
 - **Rotation** — Optional: keep only the last `max_files` and/or delete files older than `max_days`.
 
 ---
@@ -148,6 +148,7 @@ use Replayx.GenServer,
 ## Recording in detail
 
 - **Ring buffer** — Only the last `trace_buffer_size` events (messages, time, rand, state snapshots) are kept. When the buffer is full, the oldest event is dropped.
+- **Multiple instances** — When using timestamped mode (`dir` + `base_prefix`) and `Replayx.Recorder.monitor(recorder_pid, self())`, the trace filename includes the monitored process PID. Use one recorder per GenServer instance (e.g. one per supervisor child); each instance then gets a distinct file (e.g. `my_server_0_123_0_20250131T123456Z.json`) when it crashes or when you stop the recorder.
 - **When the trace is written**  
   - **On crash** — If you called `Replayx.Recorder.monitor(recorder_pid, self())` in `init`, the recorder monitors your process. When it exits (e.g. crash), the recorder flushes the buffer to the trace file (with optional `crash_reason` in metadata) and stops.  
   - **On normal stop** — When your `record` callback returns, `Replayx.Recorder.stop(recorder_pid)` is called if the recorder is still alive, which flushes the buffer and writes the trace.
@@ -167,6 +168,8 @@ use Replayx.GenServer,
 **Structured state (Ecto, structs)** — Message payloads and state snapshots are serialized with `term_to_binary` (and Base64 in JSON). Any serializable term roundtrips, including structs (e.g. Ecto schemas): ensure the struct module is loaded when replaying so decoded terms keep their `__struct__` and behaviour.
 
 **Trace validation** — Check a trace file without full replay: `Replayx.Trace.valid?(path)` returns `{:ok, :valid}` or `{:error, reason}`. CLI: `mix replay --validate path.json Module` or `mix replay --validate Module`.
+
+**Distributed nodes** — Trace metadata includes the recording node (`metadata["node"]`). For message events, when the sender is a PID, the trace includes `from_node` (sender’s node name) so cross-node calls are visible. You can replay on any node with the same code; message order is preserved. Further work (e.g. multi-node ordering guarantees) is in the roadmap.
 
 ---
 
@@ -197,14 +200,14 @@ It defines `Replayx.Examples.CrashingGenServer`, records a scenario (tick, tick,
 
 ## Scope and limitations (MVP)
 
-- **Supported:** Single GenServer, local node, record & replay crashes, CLI replay, ring buffer, timestamped traces, rotation.
-- **Not supported:** Distributed nodes, time-travel UI, Phoenix request replay, ETS/global state replay.
+- **Supported:** Single GenServer, local node, record & replay crashes, CLI replay, ring buffer, timestamped traces, rotation, node identity in traces (distributed-aware).
+- **Not supported:** Time-travel UI, Phoenix request replay, ETS/global state replay.
 
 For production, use **capture-on-crash** (ring buffer + flush on DOWN) with timestamped files and rotation so you get a bounded number of trace files per server. See [DESIGN.md](DESIGN.md) for architecture and prior art.
 
 ### Future scope / Roadmap
 
-- **Distributed nodes** — Record/replay across multiple nodes (message ordering, node identity).
+- **Distributed nodes** — Further: message ordering across nodes, multi-node replay guarantees (basic node identity in trace is implemented).
 - **Time-travel UI** — Inspect and step through trace events in a UI instead of full replay.
 - **Phoenix / request replay** — Integrate with Plug/Phoenix to record and replay HTTP requests that trigger GenServer behaviour.
 - **ETS / global state** — Capture and replay ETS table snapshots or other shared state that affects determinism.

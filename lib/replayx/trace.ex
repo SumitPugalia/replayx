@@ -32,17 +32,25 @@ defmodule Replayx.Trace do
 
   @doc """
   Converts an event tuple to a JSON-serializable map.
+  For message events, when `from` is a PID, includes `"from_node"` (sender node name) for distributed traces.
   """
   @spec event_to_map(event()) :: map()
   def event_to_map({:message, seq, kind, from, payload}) do
-    %{
+    base = %{
       "type" => "message",
       "seq" => seq,
       "kind" => to_string(kind),
       "from" => encode_term(from),
       "payload" => encode_term(payload)
     }
+
+    from_node = sender_node(from)
+    if from_node, do: Map.put(base, "from_node", from_node), else: base
   end
+
+  defp sender_node(pid) when is_pid(pid), do: node(pid) |> to_string()
+  defp sender_node({pid, _}) when is_pid(pid), do: node(pid) |> to_string()
+  defp sender_node(_), do: nil
 
   def event_to_map({:time_monotonic, value}) do
     %{"type" => "time_monotonic", "value" => value}
@@ -91,9 +99,10 @@ defmodule Replayx.Trace do
   end
 
   def map_to_event(%{"type" => "message", "seq" => seq, "from" => from, "payload" => payload}) do
-    # Backward compat: infer call if from is tuple, else info
-    kind = if is_tuple(from) and tuple_size(from) == 2, do: :call, else: :info
-    {:message, seq, kind, decode_term(from), decode_term(payload)}
+    # Backward compat: infer call if from is tuple, else info; "from_node" if present is ignored
+    from_dec = decode_term(from)
+    kind = if is_tuple(from_dec) and tuple_size(from_dec) == 2, do: :call, else: :info
+    {:message, seq, kind, from_dec, decode_term(payload)}
   end
 
   def map_to_event(%{"type" => "time_monotonic", "value" => value}) do
@@ -252,14 +261,40 @@ defmodule Replayx.Trace do
   end
 
   @doc """
+  Converts a PID to a filesystem-safe string (e.g. `#PID<0.123.0>` → `"0_123_0"`).
+  Used in trace filenames so multiple instances of the same GenServer get distinct files.
+  """
+  @spec pid_to_filename_safe(pid()) :: String.t()
+  def pid_to_filename_safe(pid) when is_pid(pid) do
+    pid
+    |> inspect()
+    |> String.replace("<", "")
+    |> String.replace(">", "")
+    |> String.replace(".", "_")
+    |> String.replace("#PID", "")
+    |> String.trim_leading("_")
+  end
+
+  @doc """
   Builds a unique trace file path with timestamp for production (no overwrite on restart).
   Ensures directory exists. Uses ISO8601-style timestamp (colons replaced with `-` for filesystem safety).
+
+  Options:
+    * `:pid` – if set, the monitored process PID is included in the filename so multiple
+      instances of the same GenServer get distinct trace files (e.g. `base_0_123_0_20260131T123456Z.json`).
   """
-  @spec path_with_timestamp(String.t(), String.t()) :: String.t()
-  def path_with_timestamp(dir, base_prefix) do
+  @spec path_with_timestamp(String.t(), String.t(), keyword()) :: String.t()
+  def path_with_timestamp(dir, base_prefix, opts \\ []) do
     File.mkdir_p!(dir)
     ts = DateTime.utc_now() |> DateTime.to_iso8601(:basic)
-    Path.join(dir, "#{base_prefix}_#{ts}.json")
+
+    name =
+      case Keyword.get(opts, :pid) do
+        pid when is_pid(pid) -> "#{base_prefix}_#{pid_to_filename_safe(pid)}_#{ts}.json"
+        _ -> "#{base_prefix}_#{ts}.json"
+      end
+
+    Path.join(dir, name)
   end
 
   @doc """

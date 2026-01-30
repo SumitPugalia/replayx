@@ -55,6 +55,14 @@ defmodule ReplayxTest do
       assert Replayx.Trace.map_to_event(map) == event
     end
 
+    test "message event with PID includes from_node for distributed traces" do
+      event = {:message, 1, :call, {self(), make_ref()}, :hello}
+      map = Replayx.Trace.event_to_map(event)
+      assert map["type"] == "message"
+      assert map["from_node"] == to_string(node())
+      assert Replayx.Trace.map_to_event(map) == event
+    end
+
     test "write returns {:error, _} when path is not writable" do
       # Path under nonexistent directory causes file error (e.g. ENOENT on Unix)
       path = "/nonexistent/replayx_test/trace.json"
@@ -124,6 +132,25 @@ defmodule ReplayxTest do
       assert File.exists?(path)
       {_meta, events} = Replayx.Trace.read(path)
       assert events == [{:time_monotonic, 123}]
+    end
+
+    @tag :tmp_dir
+    test "timestamped path includes monitored PID when using dir+base_prefix", %{tmp_dir: tmp_dir} do
+      base = "mymod"
+
+      {:ok, recorder_pid} =
+        Replayx.Recorder.start_link("dummy.json",
+          dir: tmp_dir,
+          base_prefix: base
+        )
+
+      Replayx.Recorder.monitor(recorder_pid, self())
+      Replayx.Recorder.record_event(recorder_pid, {:time_monotonic, 1})
+      Replayx.Recorder.stop(recorder_pid)
+
+      pid_safe = Replayx.Trace.pid_to_filename_safe(self())
+      assert [path] = Path.wildcard(Path.join(tmp_dir, "#{base}_*.json"))
+      assert path =~ pid_safe
     end
   end
 
