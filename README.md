@@ -188,6 +188,14 @@ use Replayx.GenServer,
 
 ---
 
+## ETS / global state
+
+Replayx records only **process-local state**: message payloads and the GenServer state snapshots you capture. It does **not** record or restore ETS tables, `:global` registry, or other shared state. If your GenServer reads or writes ETS (or global state) in callbacks, replay may diverge because that state is not replayed.
+
+**Workaround:** Keep determinism by using only `Replayx.Clock` and `Replayx.Rand` for time/randomness and by avoiding ETS/global in the code path you want to replay, or by ensuring ETS/global are in a known state before replay (e.g. reset in test setup). A future release may add optional ETS snapshot events (record table contents on flush, restore on replay).
+
+---
+
 ## Phoenix / request replay
 
 You can record a trace when a Phoenix (or Plug) request triggers GenServer behaviour, then replay the same execution from the CLI.
@@ -224,7 +232,7 @@ It defines `Replayx.Examples.CrashingGenServer`, records a scenario (tick, tick,
 ## Scope and limitations (MVP)
 
 - **Supported:** Single GenServer, local node, record & replay crashes, CLI replay, ring buffer, timestamped traces, rotation, node identity in traces (distributed-aware), step-through replay (time-travel) via `mix replay --step`, Phoenix/request replay via record-in-controller pattern (see [Phoenix / request replay](#phoenix--request-replay)).
-- **Not supported:** ETS/global state replay.
+- **Not supported:** ETS / global state capture or replay (see [ETS / global state](#ets--global-state)).
 
 For production, use **capture-on-crash** (ring buffer + flush on DOWN) with timestamped files and rotation so you get a bounded number of trace files per server. See [DESIGN.md](DESIGN.md) for architecture and prior art.
 
@@ -233,7 +241,7 @@ For production, use **capture-on-crash** (ring buffer + flush on DOWN) with time
 - **Distributed nodes** — Further: message ordering across nodes, multi-node replay guarantees (basic node identity in trace is implemented).
 - **Time-travel UI** — Full UI (e.g. browser) to step through traces; CLI step-through (`--step`) is implemented.
 - **Phoenix / request replay** — Plug helper and request metadata in trace (pattern and replay from CLI are documented).
-- **ETS / global state** — Capture and replay ETS table snapshots or other shared state that affects determinism.
+- **ETS / global state** — Optional ETS snapshot events (record/restore table contents); limitation and workarounds are documented.
 - **More virtualization** — File I/O, network, or other side effects as optional recorded/replayed layers.
 
 ### Production checklist
