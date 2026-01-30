@@ -162,7 +162,9 @@ use Replayx.GenServer,
 - **Latest trace** — `mix replay MyServer` and `Replayx.replay(MyServer)` use the **newest** file in `trace_dir` matching `<base>_*.json`. To replay a specific file, pass the path.
 - **Determinism** — Replay feeds the same messages in the same order and supplies the same time/randomness from the trace. If your callbacks use only `Replayx.Clock` and `Replayx.Rand` for time/randomness, the crash reproduces.
 
-**Trace format** — Default is JSON (human-readable). For smaller/faster I/O you can use binary (ETF): `Replayx.Trace.write(path, events, meta, format: :binary)` and `Replayx.Trace.read(path, format: :auto)` (auto-detects JSON vs binary by content).
+**Trace format** — Default is JSON (human-readable). For smaller/faster I/O you can use binary (ETF): `Replayx.Trace.write(path, events, meta, format: :binary)` and `Replayx.Trace.read(path, format: :auto)` (auto-detects JSON vs binary by content). **Optional gzip**: pass `gzip: true` when writing; when reading, gzip is auto-detected by magic bytes, or pass `gzip: true` explicitly. Use `.json.gz` or `.etf.gz` extensions for gzipped traces.
+
+**Structured state (Ecto, structs)** — Message payloads and state snapshots are serialized with `term_to_binary` (and Base64 in JSON). Any serializable term roundtrips, including structs (e.g. Ecto schemas): ensure the struct module is loaded when replaying so decoded terms keep their `__struct__` and behaviour.
 
 **Trace validation** — Check a trace file without full replay: `Replayx.Trace.valid?(path)` returns `{:ok, :valid}` or `{:error, reason}`. CLI: `mix replay --validate path.json Module` or `mix replay --validate Module`.
 
@@ -199,6 +201,14 @@ It defines `Replayx.Examples.CrashingGenServer`, records a scenario (tick, tick,
 - **Not supported:** Distributed nodes, time-travel UI, Phoenix request replay, ETS/global state replay.
 
 For production, use **capture-on-crash** (ring buffer + flush on DOWN) with timestamped files and rotation so you get a bounded number of trace files per server. See [DESIGN.md](DESIGN.md) for architecture and prior art.
+
+### Future scope / Roadmap
+
+- **Distributed nodes** — Record/replay across multiple nodes (message ordering, node identity).
+- **Time-travel UI** — Inspect and step through trace events in a UI instead of full replay.
+- **Phoenix / request replay** — Integrate with Plug/Phoenix to record and replay HTTP requests that trigger GenServer behaviour.
+- **ETS / global state** — Capture and replay ETS table snapshots or other shared state that affects determinism.
+- **More virtualization** — File I/O, network, or other side effects as optional recorded/replayed layers.
 
 ### Production checklist
 
@@ -252,7 +262,7 @@ Example: attach to log or metrics:
 
 ## Development
 
-- `mix test` — run tests  
+- `mix test` — run tests (includes property-based tests with [StreamData](https://hexdocs.pm/stream_data))  
 - `mix credo` — static analysis  
 - `mix dialyzer` — type checking (builds PLT on first run)
 
