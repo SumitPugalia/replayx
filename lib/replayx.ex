@@ -31,11 +31,22 @@ defmodule Replayx do
 
   @doc """
   Runs the given function with a recorder started; when the function returns,
-  the recorder is stopped and the trace is written to `path`.
+  the recorder is stopped and the trace is written to the path.
   The function receives the recorder pid — pass it to your GenServer's init.
+
+  You can pass either a path or a module that uses Replayx.GenServer with a `trace_file` option:
+  - `record(path, fun)` – use `path` as the trace file (e.g. `"trace.json"`).
+  - `record(module, fun)` – use the module's default trace file from `use Replayx.GenServer, trace_file: "..."`.
+
+  **Important:** Do not return from the function until the GenServer has finished
+  processing all messages you sent. Otherwise the recorder is stopped while the
+  server still tries to record (e.g. `next_seq`) and you get an EXIT. Use sync
+  calls or wait for the process to exit (e.g. `Process.monitor` + `assert_receive {:DOWN, ...}`)
+  before returning.
   """
-  @spec record(String.t(), (pid() -> term())) :: term()
-  def record(path, fun) when is_binary(path) and is_function(fun, 1) do
+  @spec record(String.t() | module(), (pid() -> term())) :: term()
+  def record(path_or_module, fun) when is_function(fun, 1) do
+    path = trace_path(path_or_module)
     {:ok, recorder_pid} = Replayx.Recorder.start_link(path)
 
     try do
@@ -49,9 +60,21 @@ defmodule Replayx do
   Replays the trace file with the given module. The module must use Replayx.GenServer
   and its init must accept `[{:replayx_replayer, agent_pid}]` and put that in state.
   Returns `{:ok, final_state}` or `{:error, reason}`.
+
+  You can pass either a path and module, or just the module:
+  - `replay(path, module)` – use `path` as the trace file.
+  - `replay(module)` – use the module's default trace file from `use Replayx.GenServer, trace_file: "..."`.
   """
   @spec replay(String.t(), module()) :: {:ok, term()} | {:error, term()}
   def replay(path, module) when is_binary(path) do
     Replayx.Replayer.run(path, module)
   end
+
+  def replay(module) when is_atom(module) do
+    path = module.__replayx_trace_file__()
+    Replayx.Replayer.run(path, module)
+  end
+
+  defp trace_path(path) when is_binary(path), do: path
+  defp trace_path(module) when is_atom(module), do: module.__replayx_trace_file__()
 end

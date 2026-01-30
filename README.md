@@ -18,11 +18,11 @@ end
 
 ## Quick start
 
-1. **Use the instrumented GenServer** and put the recorder/replayer in state:
+1. **Use the instrumented GenServer** with an optional trace file name (per GenServer):
 
 ```elixir
 defmodule MyServer do
-  use Replayx.GenServer
+  use Replayx.GenServer, trace_file: "trace_my_server.json"   # optional; default: module name (e.g. my_server.json)
 
   def init([recorder_pid]) when is_pid(recorder_pid) do
     {:ok, %{replayx_recorder: recorder_pid}}
@@ -47,25 +47,32 @@ def handle_info_impl(:tick, state) do
 end
 ```
 
-3. **Record** a session (e.g. until crash):
+3. **Record** a session (e.g. until crash). Path comes from the module's `trace_file` or pass it:
 
 ```elixir
-Replayx.record("trace.json", fn recorder_pid ->
+Replayx.record(MyServer, fn recorder_pid ->
   {:ok, pid} = MyServer.start_link(recorder_pid)
   send(pid, :tick)
   send(pid, :crash)
 end)
+# or with explicit path: Replayx.record("trace.json", fn ... end)
 ```
 
-4. **Replay** from code or CLI:
+4. **Replay** from code or CLI. Path from module or explicit:
 
 ```elixir
-Replayx.replay("trace.json", MyServer)
+Replayx.replay(MyServer)              # uses MyServer's trace_file
+Replayx.replay("trace.json", MyServer) # or pass path
 ```
 
 ```bash
-mix replay trace.json MyServer
+mix replay MyServer                   # uses module's trace_file
+mix replay trace.json MyServer        # or pass path
 ```
+
+### Trace file (multiple GenServers)
+
+If you don't set `trace_file`, the default is the module name (dots → underscores, lowercased) + `.json`, e.g. `MyApp.MyServer` → `"my_app.my_server.json"`. So each GenServer gets its own file by default. Override with `trace_file: "path.json"` when needed.
 
 ## MVP scope
 

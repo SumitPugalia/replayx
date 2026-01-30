@@ -3,6 +3,9 @@ defmodule Replayx.GenServer do
   Instrumented GenServer that records or replays messages, time, and randomness.
   Use this instead of `use GenServer` when you want record/replay.
 
+  Options (optional):
+    * `:trace_file` – trace file path for this GenServer. If not set, defaults to the module name (dots → underscores, lowercased) + `.json`, e.g. `Replayx.Examples.CrashingGenServer` → `"replayx_examples_crashinggenserver.json"`.
+
   In init, put `replayx_recorder` or `replayx_replayer` in your state so that
   callbacks can record or consume from the trace. For record: pass
   `{:replayx_recorder, recorder_pid}` in start_link's init args. For replay,
@@ -13,11 +16,27 @@ defmodule Replayx.GenServer do
   """
 
   @doc false
-  defmacro __using__(_opts) do
+  defmacro __using__(opts) do
+    explicit_trace_file = Keyword.get(opts || [], :trace_file)
+
     quote do
       use GenServer
 
-      @behaviour GenServer
+      @doc false
+      def __replayx_trace_file__ do
+        case unquote(explicit_trace_file) do
+          nil ->
+            __MODULE__
+            |> to_string()
+            |> String.replace_prefix("Elixir.", "")
+            |> String.downcase()
+            |> String.replace(".", "_")
+            |> Kernel.<>(".json")
+
+          path ->
+            path
+        end
+      end
 
       def handle_call(msg, from, state) do
         Replayx.GenServer.instrument_call(__MODULE__, msg, from, state)
