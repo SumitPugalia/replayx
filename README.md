@@ -152,6 +152,7 @@ use Replayx.GenServer,
   - **On crash** — If you called `Replayx.Recorder.monitor(recorder_pid, self())` in `init`, the recorder monitors your process. When it exits (e.g. crash), the recorder flushes the buffer to the trace file (with optional `crash_reason` in metadata) and stops.  
   - **On normal stop** — When your `record` callback returns, `Replayx.Recorder.stop(recorder_pid)` is called if the recorder is still alive, which flushes the buffer and writes the trace.
 - **Do not return from `record`** until the GenServer has finished handling the messages you sent (e.g. use `Process.monitor` and `receive {:DOWN, ...}` after sending a message that causes a crash).
+- **Trace write failure** — `Replayx.Trace.write/3` returns `{:ok, :ok}` or `{:error, reason}` (e.g. disk full, permission). On failure the Recorder emits `[:replayx, :recorder, :trace_write_failed]` so you can attach to log or alert; the Recorder still stops.
 
 ---
 
@@ -203,6 +204,7 @@ Replayx emits [Telemetry](https://hexdocs.pm/telemetry) events so you can hook m
 | Event | When | Measurements | Metadata |
 |-------|------|--------------|----------|
 | `[:replayx, :recorder, :trace_written]` | After a trace is written (flush on stop or crash) | `event_count` | `path`, `crash_reason` (nil if normal stop) |
+| `[:replayx, :recorder, :trace_write_failed]` | When trace write fails (e.g. disk full, permission) | `event_count` | `path`, `crash_reason`, `reason` |
 | `[:replayx, :replayer, :start]` | When replay starts | — | `path`, `module` |
 | `[:replayx, :replayer, :stop]` | When replay finishes (success or crash) | — | `path`, `module`, `result` (`{:ok, state}` or `{:error, reason}`) |
 

@@ -134,8 +134,10 @@ defmodule Replayx.Trace do
   @doc """
   Writes a trace to a JSON file.
   Optional extra_metadata (e.g. %{"crash_reason" => "..."}) is merged into metadata.
+  Returns `{:ok, :ok}` on success, or `{:error, reason}` on failure (e.g. disk full, permission).
+  Use this to surface write failures for logging or alerting.
   """
-  @spec write(String.t(), [event()], map() | nil) :: :ok
+  @spec write(String.t(), [event()], map() | nil) :: {:ok, :ok} | {:error, term()}
   def write(path, events, extra_metadata \\ nil) do
     base = metadata()
     meta = if extra_metadata, do: Map.merge(base, extra_metadata), else: base
@@ -145,8 +147,14 @@ defmodule Replayx.Trace do
       "events" => Enum.map(events, &event_to_map/1)
     }
 
-    File.write!(path, Jason.encode!(doc, pretty: true))
-    :ok
+    contents = Jason.encode!(doc, pretty: true)
+
+    case File.write(path, contents) do
+      :ok -> {:ok, :ok}
+      {:error, reason} -> {:error, {:file, reason}}
+    end
+  rescue
+    e -> {:error, {:encode, e}}
   end
 
   @doc """

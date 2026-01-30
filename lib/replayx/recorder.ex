@@ -117,16 +117,25 @@ defmodule Replayx.Recorder do
     events = Enum.reverse(state.buffer)
     metadata = if crash_reason, do: %{"crash_reason" => inspect(crash_reason)}, else: %{}
     path = resolve_path(state)
-    Replayx.Trace.write(path, events, metadata)
 
-    :telemetry.execute(
-      [:replayx, :recorder, :trace_written],
-      %{event_count: length(events)},
-      %{path: path, crash_reason: crash_reason}
-    )
+    case Replayx.Trace.write(path, events, metadata) do
+      {:ok, :ok} ->
+        :telemetry.execute(
+          [:replayx, :recorder, :trace_written],
+          %{event_count: length(events)},
+          %{path: path, crash_reason: crash_reason}
+        )
 
-    if state.dir && state.base_prefix && state.rotation != [] do
-      Replayx.Trace.rotate(state.dir, state.base_prefix, state.rotation)
+        if state.dir && state.base_prefix && state.rotation != [] do
+          Replayx.Trace.rotate(state.dir, state.base_prefix, state.rotation)
+        end
+
+      {:error, reason} ->
+        :telemetry.execute(
+          [:replayx, :recorder, :trace_write_failed],
+          %{event_count: length(events)},
+          %{path: path, crash_reason: crash_reason, reason: reason}
+        )
     end
   end
 

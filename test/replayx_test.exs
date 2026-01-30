@@ -54,6 +54,19 @@ defmodule ReplayxTest do
       assert map["type"] == "message"
       assert Replayx.Trace.map_to_event(map) == event
     end
+
+    test "write returns {:error, _} when path is not writable" do
+      # Path under nonexistent directory causes file error (e.g. ENOENT on Unix)
+      path = "/nonexistent/replayx_test/trace.json"
+      assert {:error, {:file, _reason}} = Replayx.Trace.write(path, [], nil)
+    end
+
+    @tag :tmp_dir
+    test "write returns {:ok, :ok} on success", %{tmp_dir: tmp_dir} do
+      path = Path.join(tmp_dir, "trace.json")
+      assert {:ok, :ok} = Replayx.Trace.write(path, [{:time_monotonic, 1}], nil)
+      assert File.exists?(path)
+    end
   end
 
   describe "Recorder" do
@@ -90,6 +103,28 @@ defmodule ReplayxTest do
       Replayx.Recorder.stop(pid)
 
       assert_receive {:trace_written, %{event_count: 1}, %{path: ^path, crash_reason: nil}}
+      :telemetry.detach(id)
+    end
+
+    test "emits trace_write_failed when trace write fails" do
+      path = "/nonexistent/replayx_test/rec.json"
+      id = "replayx-test-write-fail-#{System.unique_integer([:positive])}"
+      parent = self()
+
+      :telemetry.attach(
+        id,
+        [:replayx, :recorder, :trace_write_failed],
+        fn _name, measurements, metadata, _config ->
+          send(parent, {:trace_write_failed, measurements, metadata})
+        end,
+        nil
+      )
+
+      {:ok, pid} = Replayx.Recorder.start_link(path)
+      Replayx.Recorder.record_event(pid, {:time_monotonic, 1})
+      Replayx.Recorder.stop(pid)
+
+      assert_receive {:trace_write_failed, %{event_count: 1}, %{path: ^path, reason: {:file, _}}}
       :telemetry.detach(id)
     end
 
