@@ -87,6 +87,7 @@ defmodule Replayx do
     Replayx.Replayer.run(path, module)
   end
 
+  @spec replay(module()) :: {:ok, term()} | {:error, term()}
   def replay(module) when is_atom(module) do
     path = trace_path_for_replay(module)
     Replayx.Replayer.run(path, module)
@@ -101,7 +102,7 @@ defmodule Replayx do
     replay_path(module)
   end
 
-  defp record_path_and_opts(path) when is_binary(path), do: {path, []}
+  defp record_path_and_opts(path) when is_binary(path), do: {path, record_opts(path)}
 
   defp record_path_and_opts(module) when is_atom(module) do
     opts = record_opts(module)

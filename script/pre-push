@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# Git pre-push hook: format, credo, dialyzer, tests.
+# Install: mix git.install_hooks
+# Or manually: cp script/pre-push .git/hooks/pre-push && chmod +x .git/hooks/pre-push
+
+set -e
+cd "$(git rev-parse --show-toplevel)"
+
+echo "==> mix format --check-formatted"
+mix format --check-formatted
+
+echo "==> mix credo"
+mix credo
+
+echo "==> mix dialyzer"
+mix dialyzer
+
+echo "==> mix test"
+mix test
+
+echo ""
+echo "Pre-push checks passed."

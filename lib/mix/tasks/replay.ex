@@ -14,7 +14,7 @@ defmodule Mix.Tasks.Replay do
 
   @impl Mix.Task
   def run(args) do
-    {_opts, args, _} = OptionParser.parse(args, strict: [])
+    {_opts, args, _invalid} = OptionParser.parse(args, strict: [])
 
     case args do
       [path | module_name_parts] ->
@@ -41,8 +41,8 @@ defmodule Mix.Tasks.Replay do
   defp ensure_example_loaded!(module) do
     if module == :"Elixir.Replayx.Examples.CrashingGenServer" do
       Process.put(:replayx_loading_module, true)
-      Code.require_file("examples/record_and_replay.exs")
-      Process.delete(:replayx_loading_module)
+      _ = Code.require_file("examples/record_and_replay.exs")
+      _ = Process.delete(:replayx_loading_module)
     end
   end
 

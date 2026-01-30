@@ -186,41 +186,42 @@ defmodule Replayx.Trace do
     if is_nil(max_files) and is_nil(max_days) do
       :ok
     else
-      pattern = Path.join(dir, "#{base_prefix}_*.json")
-      files = Path.wildcard(pattern)
-
-      if files == [] do
-        :ok
-      else
-        cutoff_time =
-          max_days &&
-            DateTime.utc_now()
-            |> DateTime.add(-max_days, :day)
-            |> DateTime.to_unix()
-
-        with_mtime =
-          Enum.map(files, fn f ->
-            {:ok, stat} = File.stat(f, time: :posix)
-            {f, stat.mtime}
-          end)
-
-        sorted = Enum.sort_by(with_mtime, fn {_, mtime} -> mtime end, :desc)
-
-        to_keep_count = max_files || length(sorted)
-        kept = Enum.take(sorted, to_keep_count)
-        beyond_count = Enum.drop(sorted, to_keep_count)
-
-        old_kept =
-          if cutoff_time,
-            do: Enum.filter(kept, fn {_, mtime} -> mtime < cutoff_time end),
-            else: []
-
-        to_delete = beyond_count ++ old_kept
-
-        Enum.each(to_delete, fn {path, _} -> File.rm(path) end)
-        :ok
-      end
+      apply_rotation(dir, base_prefix, max_files, max_days)
     end
+  end
+
+  defp apply_rotation(dir, base_prefix, max_files, max_days) do
+    pattern = Path.join(dir, "#{base_prefix}_*.json")
+    files = Path.wildcard(pattern)
+    if files == [], do: :ok, else: delete_old_files(files, max_files, max_days)
+  end
+
+  defp delete_old_files(files, max_files, max_days) do
+    cutoff_time =
+      max_days &&
+        DateTime.utc_now()
+        |> DateTime.add(-max_days, :day)
+        |> DateTime.to_unix()
+
+    with_mtime =
+      Enum.map(files, fn f ->
+        {:ok, stat} = File.stat(f, time: :posix)
+        {f, stat.mtime}
+      end)
+
+    sorted = Enum.sort_by(with_mtime, fn {_, mtime} -> mtime end, :desc)
+    to_keep_count = max_files || length(sorted)
+    kept = Enum.take(sorted, to_keep_count)
+    beyond_count = Enum.drop(sorted, to_keep_count)
+
+    old_kept =
+      if cutoff_time,
+        do: Enum.filter(kept, fn {_, mtime} -> mtime < cutoff_time end),
+        else: []
+
+    to_delete = beyond_count ++ old_kept
+    Enum.each(to_delete, fn {path, _} -> File.rm(path) end)
+    :ok
   end
 
   @doc """
