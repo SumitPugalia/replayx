@@ -38,6 +38,7 @@ defmodule Replayx.MixProject do
     [
       {:jason, "~> 1.4"},
       {:telemetry, "~> 1.0"},
+      {:stream_data, "~> 1.0", only: [:test], runtime: false},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev], runtime: false}
     ]
