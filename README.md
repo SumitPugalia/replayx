@@ -162,6 +162,8 @@ use Replayx.GenServer,
 - **Latest trace** — `mix replay MyServer` and `Replayx.replay(MyServer)` use the **newest** file in `trace_dir` matching `<base>_*.json`. To replay a specific file, pass the path.
 - **Determinism** — Replay feeds the same messages in the same order and supplies the same time/randomness from the trace. If your callbacks use only `Replayx.Clock` and `Replayx.Rand` for time/randomness, the crash reproduces.
 
+**Trace format** — Default is JSON (human-readable). For smaller/faster I/O you can use binary (ETF): `Replayx.Trace.write(path, events, meta, format: :binary)` and `Replayx.Trace.read(path, format: :auto)` (auto-detects JSON vs binary by content).
+
 ---
 
 ## CLI

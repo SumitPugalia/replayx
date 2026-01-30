@@ -67,6 +67,16 @@ defmodule ReplayxTest do
       assert {:ok, :ok} = Replayx.Trace.write(path, [{:time_monotonic, 1}], nil)
       assert File.exists?(path)
     end
+
+    @tag :tmp_dir
+    test "binary format roundtrip (write and read :auto)", %{tmp_dir: tmp_dir} do
+      path = Path.join(tmp_dir, "trace.etf")
+      events = [{:time_monotonic, 1}, {:message, 0, :info, nil, :hello}]
+      assert {:ok, :ok} = Replayx.Trace.write(path, events, nil, format: :binary)
+      assert File.exists?(path)
+      {_meta, read_events} = Replayx.Trace.read(path, format: :auto)
+      assert read_events == events
+    end
   end
 
   describe "Recorder" do

@@ -132,21 +132,26 @@ defmodule Replayx.Trace do
   end
 
   @doc """
-  Writes a trace to a JSON file.
+  Writes a trace to a file.
   Optional extra_metadata (e.g. %{"crash_reason" => "..."}) is merged into metadata.
-  Returns `{:ok, :ok}` on success, or `{:error, reason}` on failure (e.g. disk full, permission).
-  Use this to surface write failures for logging or alerting.
+  Options: `:format` — `:json` (default) or `:binary` (ETF, smaller/faster).
+  Returns `{:ok, :ok}` on success, or `{:error, reason}` on failure.
   """
-  @spec write(String.t(), [event()], map() | nil) :: {:ok, :ok} | {:error, term()}
-  def write(path, events, extra_metadata \\ nil) do
+  @spec write(String.t(), [event()], map() | nil, keyword()) :: {:ok, :ok} | {:error, term()}
+  def write(path, events, extra_metadata \\ nil, opts \\ []) do
+    format = Keyword.get(opts, :format, :json)
     base = metadata()
     meta = if extra_metadata, do: Map.merge(base, extra_metadata), else: base
 
-    doc = %{
-      "metadata" => meta,
-      "events" => Enum.map(events, &event_to_map/1)
-    }
+    case format do
+      :json -> write_json(path, meta, events)
+      :binary -> write_binary(path, meta, events)
+      _ -> write_json(path, meta, events)
+    end
+  end
 
+  defp write_json(path, meta, events) do
+    doc = %{"metadata" => meta, "events" => Enum.map(events, &event_to_map/1)}
     contents = Jason.encode!(doc, pretty: true)
 
     case File.write(path, contents) do
@@ -157,16 +162,46 @@ defmodule Replayx.Trace do
     e -> {:error, {:encode, e}}
   end
 
+  defp write_binary(path, meta, events) do
+    doc = %{metadata: meta, events: events}
+    contents = :erlang.term_to_binary(doc, compressed: 6)
+
+    case File.write(path, contents) do
+      :ok -> {:ok, :ok}
+      {:error, reason} -> {:error, {:file, reason}}
+    end
+  end
+
   @doc """
-  Reads a trace from a JSON file. Returns {metadata, list of events}.
+  Reads a trace from a file.
+  Options: `:format` — `:json`, `:binary`, or `:auto` (default; detect by content: 131 = ETF).
+  Returns `{metadata, list of events}`.
   """
-  @spec read(String.t()) :: {map(), [event()]}
-  def read(path) do
+  @spec read(String.t(), keyword()) :: {map(), [event()]}
+  def read(path, opts \\ []) do
     {:ok, bin} = File.read(path)
+    format = Keyword.get(opts, :format, :auto)
+    format = if format == :auto, do: detect_format(bin), else: format
+
+    case format do
+      :binary -> read_binary(bin)
+      _ -> read_json(bin)
+    end
+  end
+
+  defp detect_format(<<131, _::binary>>), do: :binary
+  defp detect_format(_), do: :json
+
+  defp read_json(bin) do
     doc = Jason.decode!(bin)
-    metadata = Map.get(doc, "metadata", %{})
+    meta = Map.get(doc, "metadata", %{})
     events = (doc["events"] || []) |> Enum.map(&map_to_event/1)
-    {metadata, events}
+    {meta, events}
+  end
+
+  defp read_binary(bin) do
+    %{metadata: meta, events: events} = :erlang.binary_to_term(bin)
+    {meta, events}
   end
 
   @doc """
