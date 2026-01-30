@@ -134,27 +134,28 @@ defmodule Replayx.Trace do
   @doc """
   Writes a trace to a file.
   Optional extra_metadata (e.g. %{"crash_reason" => "..."}) is merged into metadata.
-  Options: `:format` — `:json` (default) or `:binary` (ETF, smaller/faster).
+  Options:
+    * `:format` — `:json` (default) or `:binary` (ETF, smaller/faster).
+    * `:gzip` — if `true`, compress the trace with gzip (smaller files; use `.json.gz` or `.etf.gz` extension).
   Returns `{:ok, :ok}` on success, or `{:error, reason}` on failure.
   """
   @spec write(String.t(), [event()], map() | nil, keyword()) :: {:ok, :ok} | {:error, term()}
   def write(path, events, extra_metadata \\ nil, opts \\ []) do
     format = Keyword.get(opts, :format, :json)
+    gzip = Keyword.get(opts, :gzip, false)
     base = metadata()
     meta = if extra_metadata, do: Map.merge(base, extra_metadata), else: base
 
-    case format do
-      :json -> write_json(path, meta, events)
-      :binary -> write_binary(path, meta, events)
-      _ -> write_json(path, meta, events)
-    end
-  end
+    contents =
+      case format do
+        :json -> build_json_content(meta, events)
+        :binary -> build_binary_content(meta, events)
+        _ -> build_json_content(meta, events)
+      end
 
-  defp write_json(path, meta, events) do
-    doc = %{"metadata" => meta, "events" => Enum.map(events, &event_to_map/1)}
-    contents = Jason.encode!(doc, pretty: true)
+    to_write = if gzip, do: :zlib.gzip(contents), else: contents
 
-    case File.write(path, contents) do
+    case File.write(path, to_write) do
       :ok -> {:ok, :ok}
       {:error, reason} -> {:error, {:file, reason}}
     end
@@ -162,24 +163,27 @@ defmodule Replayx.Trace do
     e -> {:error, {:encode, e}}
   end
 
-  defp write_binary(path, meta, events) do
-    doc = %{metadata: meta, events: events}
-    contents = :erlang.term_to_binary(doc, compressed: 6)
+  defp build_json_content(meta, events) do
+    doc = %{"metadata" => meta, "events" => Enum.map(events, &event_to_map/1)}
+    Jason.encode!(doc, pretty: true)
+  end
 
-    case File.write(path, contents) do
-      :ok -> {:ok, :ok}
-      {:error, reason} -> {:error, {:file, reason}}
-    end
+  defp build_binary_content(meta, events) do
+    doc = %{metadata: meta, events: events}
+    :erlang.term_to_binary(doc, compressed: 6)
   end
 
   @doc """
   Reads a trace from a file.
-  Options: `:format` — `:json`, `:binary`, or `:auto` (default; detect by content: 131 = ETF).
+  Options:
+    * `:format` — `:json`, `:binary`, or `:auto` (default; detect by content: 131 = ETF).
+    * `:gzip` — if `true`, decompress with gzip first; if `:auto` (default), detect by gzip magic (1F 8B).
   Returns `{metadata, list of events}`.
   """
   @spec read(String.t(), keyword()) :: {map(), [event()]}
   def read(path, opts \\ []) do
     {:ok, bin} = File.read(path)
+    bin = maybe_gunzip(bin, Keyword.get(opts, :gzip, :auto))
     format = Keyword.get(opts, :format, :auto)
     format = if format == :auto, do: detect_format(bin), else: format
 
@@ -188,6 +192,11 @@ defmodule Replayx.Trace do
       _ -> read_json(bin)
     end
   end
+
+  # Gzip magic: 1F 8B
+  defp maybe_gunzip(<<0x1F, 0x8B, _::binary>> = gzipped, :auto), do: :zlib.gunzip(gzipped)
+  defp maybe_gunzip(bin, true), do: :zlib.gunzip(bin)
+  defp maybe_gunzip(bin, _), do: bin
 
   defp detect_format(<<131, _::binary>>), do: :binary
   defp detect_format(_), do: :json
@@ -212,6 +221,7 @@ defmodule Replayx.Trace do
   def valid?(path, opts \\ []) do
     case File.read(path) do
       {:ok, bin} ->
+        bin = maybe_gunzip(bin, Keyword.get(opts, :gzip, :auto))
         format = Keyword.get(opts, :format, :auto)
         format = if format == :auto, do: detect_format(bin), else: format
 

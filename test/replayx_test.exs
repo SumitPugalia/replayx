@@ -88,6 +88,20 @@ defmodule ReplayxTest do
     test "valid? returns {:error, _} for nonexistent path" do
       assert {:error, {:file, :enoent}} = Replayx.Trace.valid?("/nonexistent/trace.json")
     end
+
+    test "encode_term/decode_term roundtrip for struct-like state (Ecto-style)" do
+      # State is serialized with term_to_binary; structs (including Ecto schemas) roundtrip
+      # as long as the struct module is loaded when decoding.
+      state = %{
+        user: %{__struct__: MyApp.User, id: 1, name: "Alice", email: "a@b.com"},
+        count: 42
+      }
+
+      encoded = Replayx.Trace.encode_term(state)
+      assert is_binary(encoded)
+      decoded = Replayx.Trace.decode_term(encoded)
+      assert decoded == state
+    end
   end
 
   describe "Recorder" do
