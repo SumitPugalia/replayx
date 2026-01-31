@@ -4,13 +4,14 @@ defmodule Replayx.MixProject do
   def project do
     [
       app: :replayx,
-      version: "1.0.0",
+      version: "1.0.1",
       elixir: "~> 1.17",
       start_permanent: Mix.env() == :prod,
       elixirc_paths: elixirc_paths(Mix.env()),
       deps: deps(),
       dialyzer: dialyzer(),
-      description: "Deterministic replay debugging for Elixir GenServers. Record what led to a crash, then replay it exactly.",
+      description:
+        "Deterministic replay debugging for Elixir GenServers. Record what led to a crash, then replay it exactly.",
       package: package()
     ]
   end
