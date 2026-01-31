@@ -5,8 +5,10 @@ defmodule Replayx.Trace do
   """
 
   @type message_kind :: :call | :cast | :info
+  @type message_opts :: [from_node: String.t()]
   @type event ::
           {:message, non_neg_integer(), message_kind(), term(), term()}
+          | {:message, non_neg_integer(), message_kind(), term(), term(), message_opts()}
           | {:time_monotonic, integer()}
           | {:time_system, integer()}
           | {:rand, float()}
@@ -36,16 +38,12 @@ defmodule Replayx.Trace do
   """
   @spec event_to_map(event()) :: map()
   def event_to_map({:message, seq, kind, from, payload}) do
-    base = %{
-      "type" => "message",
-      "seq" => seq,
-      "kind" => to_string(kind),
-      "from" => encode_term(from),
-      "payload" => encode_term(payload)
-    }
+    message_event_to_map(seq, kind, from, payload, sender_node(from))
+  end
 
-    from_node = sender_node(from)
-    if from_node, do: Map.put(base, "from_node", from_node), else: base
+  def event_to_map({:message, seq, kind, from, payload, opts}) when is_list(opts) do
+    from_node = Keyword.get(opts, :from_node) || sender_node(from)
+    message_event_to_map(seq, kind, from, payload, from_node)
   end
 
   def event_to_map({:time_monotonic, value}) do
@@ -72,6 +70,18 @@ defmodule Replayx.Trace do
     %{"type" => "state_snapshot", "state" => encode_term(state)}
   end
 
+  defp message_event_to_map(seq, kind, from, payload, from_node) do
+    base = %{
+      "type" => "message",
+      "seq" => seq,
+      "kind" => to_string(kind),
+      "from" => encode_term(from),
+      "payload" => encode_term(payload)
+    }
+
+    if from_node, do: Map.put(base, "from_node", from_node), else: base
+  end
+
   defp sender_node(pid) when is_pid(pid), do: node(pid) |> to_string()
   defp sender_node({pid, _}) when is_pid(pid), do: node(pid) |> to_string()
   defp sender_node(_), do: nil
@@ -80,29 +90,27 @@ defmodule Replayx.Trace do
   Converts a JSON map back to an event tuple.
   """
   @spec map_to_event(map()) :: event()
-  def map_to_event(%{
-        "type" => "message",
-        "seq" => seq,
-        "kind" => kind,
-        "from" => from,
-        "payload" => payload
-      }) do
-    kind_atom =
-      case kind do
-        "call" -> :call
-        "cast" -> :cast
-        "info" -> :info
-        _ -> :info
-      end
-
-    {:message, seq, kind_atom, decode_term(from), decode_term(payload)}
+  def map_to_event(
+        %{
+          "type" => "message",
+          "seq" => seq,
+          "kind" => kind,
+          "from" => from,
+          "payload" => payload
+        } = m
+      ) do
+    kind_atom = kind_to_atom(kind)
+    from_dec = decode_term(from)
+    payload_dec = decode_term(payload)
+    maybe_message_with_from_node(seq, kind_atom, from_dec, payload_dec, m["from_node"])
   end
 
-  def map_to_event(%{"type" => "message", "seq" => seq, "from" => from, "payload" => payload}) do
-    # Backward compat: infer call if from is tuple, else info; "from_node" if present is ignored
+  def map_to_event(%{"type" => "message", "seq" => seq, "from" => from, "payload" => payload} = m) do
+    # Backward compat: infer call if from is tuple, else info
     from_dec = decode_term(from)
     kind = if is_tuple(from_dec) and tuple_size(from_dec) == 2, do: :call, else: :info
-    {:message, seq, kind, from_dec, decode_term(payload)}
+    payload_dec = decode_term(payload)
+    maybe_message_with_from_node(seq, kind, from_dec, payload_dec, m["from_node"])
   end
 
   def map_to_event(%{"type" => "time_monotonic", "value" => value}) do
@@ -129,15 +137,62 @@ defmodule Replayx.Trace do
     {:state_snapshot, decode_term(state)}
   end
 
+  defp kind_to_atom(kind) when is_binary(kind) do
+    case kind do
+      "call" -> :call
+      "cast" -> :cast
+      "info" -> :info
+      _ -> :info
+    end
+  end
+
+  defp maybe_message_with_from_node(seq, kind, from, payload, nil),
+    do: {:message, seq, kind, from, payload}
+
+  defp maybe_message_with_from_node(seq, kind, from, payload, from_node)
+       when is_binary(from_node),
+       do: {:message, seq, kind, from, payload, [from_node: from_node]}
+
   @doc """
-  Builds metadata map for the trace (Elixir version, node).
+  Builds metadata map for the trace (Elixir version, recording node).
+  For distributed traces, `"node"` (and `"receiver_node"`) is the node where the GenServer ran.
   """
   @spec metadata() :: map()
   def metadata do
+    node_str = node() |> to_string()
+
     %{
       "elixir" => System.version(),
-      "node" => node() |> to_string()
+      "node" => node_str,
+      "receiver_node" => node_str
     }
+  end
+
+  @doc """
+  Returns true if the trace contains any message events with `from_node` (sender from another node).
+  Use this to detect distributed traces before replay.
+  """
+  @spec distributed?([event()]) :: boolean()
+  def distributed?(events) do
+    Enum.any?(events, fn
+      {:message, _seq, _kind, _from, _payload, opts} when is_list(opts) ->
+        Keyword.has_key?(opts, :from_node)
+
+      _ ->
+        false
+    end)
+  end
+
+  @doc """
+  Returns the list of {seq, from_node} for message events that have a sender node (distributed).
+  Order is the same as in the trace (processing order). Use for debugging or multi-node replay.
+  """
+  @spec message_nodes([event()]) :: [{non_neg_integer(), String.t()}]
+  def message_nodes(events) do
+    for {:message, seq, _kind, _from, _payload, opts} when is_list(opts) <- events,
+        from_node = opts[:from_node],
+        not is_nil(from_node),
+        do: {seq, from_node}
   end
 
   @doc """
@@ -373,6 +428,9 @@ defmodule Replayx.Trace do
     events
     |> Enum.reduce({[], nil}, fn
       {:message, seq, kind, _from, payload}, {acc, _} ->
+        {[{seq, kind, payload, nil} | acc], {seq, kind, payload}}
+
+      {:message, seq, kind, _from, payload, _opts}, {acc, _} ->
         {[{seq, kind, payload, nil} | acc], {seq, kind, payload}}
 
       {:state_snapshot, state}, {[{seq, kind, payload, nil} | rest], _} ->

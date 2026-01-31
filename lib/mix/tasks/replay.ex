@@ -94,6 +94,17 @@ defmodule Mix.Tasks.Replay do
     {_metadata, events} = Replayx.Trace.read(path)
     summary_lines = Replayx.Trace.summary(events)
     Mix.shell().info("")
+
+    if Replayx.Trace.distributed?(events) do
+      nodes = Replayx.Trace.message_nodes(events)
+
+      Mix.shell().info(
+        "Distributed trace: #{length(nodes)} message(s) from other nodes (order preserved in replay)"
+      )
+
+      Mix.shell().info("")
+    end
+
     Enum.each(summary_lines, &Mix.shell().info/1)
     Mix.shell().info("")
 

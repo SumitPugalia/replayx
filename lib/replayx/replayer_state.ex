@@ -50,6 +50,9 @@ defmodule Replayx.ReplayerState do
   defp event_to_type_value({:message, seq, kind, from, payload}),
     do: {:message, {seq, kind, from, payload}}
 
+  defp event_to_type_value({:message, seq, kind, from, payload, _opts}),
+    do: {:message, {seq, kind, from, payload}}
+
   defp event_to_type_value({:time_monotonic, v}), do: {:time_monotonic, v}
   defp event_to_type_value({:time_system, v}), do: {:time_system, v}
   defp event_to_type_value({:rand, v}), do: {:rand, v}

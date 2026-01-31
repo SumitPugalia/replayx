@@ -45,10 +45,11 @@ defmodule Replayx.Recorder do
   @doc """
   Monitors the given process. When it crashes (DOWN), the recorder flushes the buffer to the trace file and stops.
   Call this from your GenServer's init when you have the recorder pid (e.g. `Replayx.Recorder.monitor(recorder_pid, self())`).
+  Uses a synchronous call so that when init returns, the recorder is already monitoring (safe for TracedServerStarter).
   """
   @spec monitor(pid() | atom(), pid()) :: :ok
   def monitor(recorder_pid, pid) when is_pid(pid) do
-    GenServer.cast(recorder_pid, {:monitor, pid})
+    GenServer.call(recorder_pid, {:monitor, pid}, :infinity)
   end
 
   @doc """
@@ -87,9 +88,9 @@ defmodule Replayx.Recorder do
   end
 
   @impl GenServer
-  def handle_cast({:monitor, pid}, state) do
+  def handle_call({:monitor, pid}, _from, state) do
     ref = Process.monitor(pid)
-    {:noreply, %{state | monitored_ref: ref, monitored_pid: pid}}
+    {:reply, :ok, %{state | monitored_ref: ref, monitored_pid: pid}}
   end
 
   @impl GenServer
