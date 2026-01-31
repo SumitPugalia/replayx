@@ -15,7 +15,8 @@ defmodule Replayx.Recorder do
             buffer: [],
             buffer_size: 10,
             seq: 0,
-            monitored_ref: nil
+            monitored_ref: nil,
+            monitored_pid: nil
 
   @doc """
   Starts a recorder that will write when stopped or when the monitored process crashes.
@@ -88,7 +89,7 @@ defmodule Replayx.Recorder do
   @impl GenServer
   def handle_cast({:monitor, pid}, state) do
     ref = Process.monitor(pid)
-    {:noreply, %{state | monitored_ref: ref}}
+    {:noreply, %{state | monitored_ref: ref, monitored_pid: pid}}
   end
 
   @impl GenServer
@@ -139,8 +140,10 @@ defmodule Replayx.Recorder do
     end
   end
 
-  defp resolve_path(%{dir: dir, base_prefix: base}) when is_binary(dir) and is_binary(base) do
-    Replayx.Trace.path_with_timestamp(dir, base)
+  defp resolve_path(%{dir: dir, base_prefix: base, monitored_pid: pid})
+       when is_binary(dir) and is_binary(base) do
+    opts = if pid, do: [pid: pid], else: []
+    Replayx.Trace.path_with_timestamp(dir, base, opts)
   end
 
   defp resolve_path(state), do: state.path
