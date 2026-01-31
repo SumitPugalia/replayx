@@ -258,7 +258,9 @@ use Replayx.GenServer,
 
 ## Production readiness
 
-Use this checklist when preparing for production use (e.g. capture-on-crash with bounded disk).
+**Can Replayx be used in production?** Yes, for the **capture-on-crash** pattern: a ring buffer in memory, flush to disk only when the GenServer crashes (or you stop the recorder). Bounded disk is enforced via timestamped files and optional rotation. Do **not** use it to “record everything” for all GenServers (unbounded I/O and disk); use it only for the processes you want to debug when they crash.
+
+Use the checklist below when preparing for production.
 
 ### Checklist
 
