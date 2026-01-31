@@ -9,7 +9,16 @@ defmodule Replayx.MixProject do
       start_permanent: Mix.env() == :prod,
       elixirc_paths: elixirc_paths(Mix.env()),
       deps: deps(),
-      dialyzer: dialyzer()
+      dialyzer: dialyzer(),
+      description: "Deterministic replay debugging for Elixir GenServers. Record what led to a crash, then replay it exactly.",
+      package: package()
+    ]
+  end
+
+  defp package do
+    [
+      licenses: ["Apache-2.0"],
+      links: %{"GitHub" => "https://github.com/SumitPugalia/replayx"}
     ]
   end
 
@@ -40,7 +49,8 @@ defmodule Replayx.MixProject do
       {:telemetry, "~> 1.0"},
       {:stream_data, "~> 1.0", only: [:test], runtime: false},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
-      {:dialyxir, "~> 1.4", only: [:dev], runtime: false}
+      {:dialyxir, "~> 1.4", only: [:dev], runtime: false},
+      {:ex_doc, "~> 0.34", only: :dev, runtime: false}
     ]
   end
 end
