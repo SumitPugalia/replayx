@@ -71,7 +71,7 @@ defmodule Replayx.TracedServerStarter do
   Returns `{:ok, pid}` where `pid` is this starter process (the GenServer pid is linked under it).
   """
   @spec start_child(Supervisor.supervisor(), module(), list(), keyword()) ::
-          DynamicSupervisor.on_start_child_result()
+          {:ok, pid()} | {:ok, pid(), term()} | {:error, term()} | :ignore
   def start_child(supervisor, server_module, server_init_args \\ [], opts \\ []) do
     spec = child_spec(server_module, server_init_args, opts)
     DynamicSupervisor.start_child(supervisor, spec)
