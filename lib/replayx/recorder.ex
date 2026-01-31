@@ -115,6 +115,7 @@ defmodule Replayx.Recorder do
   end
 
   defp flush_to_file(state, crash_reason) do
+    _ = Application.ensure_all_started(:telemetry)
     events = Enum.reverse(state.buffer)
     metadata = if crash_reason, do: %{"crash_reason" => inspect(crash_reason)}, else: %{}
     path = resolve_path(state)

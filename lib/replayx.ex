@@ -88,10 +88,10 @@ defmodule Replayx do
     Replayx.Replayer.run(path, module, [])
   end
 
-  @spec replay(module()) :: {:ok, term()} | {:error, term()}
-  def replay(module) when is_atom(module) do
+  @spec replay(module(), keyword()) :: {:ok, term()} | {:error, term()}
+  def replay(module, opts) when is_atom(module) and is_list(opts) do
     path = trace_path_for_replay(module)
-    Replayx.Replayer.run(path, module, [])
+    Replayx.Replayer.run(path, module, opts)
   end
 
   @spec replay(String.t(), module(), keyword()) :: {:ok, term()} | {:error, term()}
@@ -99,10 +99,10 @@ defmodule Replayx do
     Replayx.Replayer.run(path, module, opts)
   end
 
-  @spec replay(module(), keyword()) :: {:ok, term()} | {:error, term()}
-  def replay(module, opts) when is_atom(module) and is_list(opts) do
+  @spec replay(module()) :: {:ok, term()} | {:error, term()}
+  def replay(module) when is_atom(module) do
     path = trace_path_for_replay(module)
-    Replayx.Replayer.run(path, module, opts)
+    Replayx.Replayer.run(path, module, [])
   end
 
   @doc """

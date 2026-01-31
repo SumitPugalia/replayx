@@ -19,8 +19,9 @@ defmodule Mix.Tasks.Replay do
 
     case args do
       [path | module_name_parts] ->
-        {path, module} = resolve_path_and_module(path, module_name_parts)
+        module = resolve_module(path, module_name_parts)
         ensure_example_loaded!(module)
+        path = resolve_path(path, module_name_parts, module)
         if opts[:validate], do: validate_only(path), else: replay(path, module, opts)
 
       [] ->
@@ -30,15 +31,19 @@ defmodule Mix.Tasks.Replay do
     end
   end
 
-  defp resolve_path_and_module(path, module_name_parts) do
+  defp resolve_module(path, module_name_parts) do
     if String.ends_with?(path, ".json") or String.ends_with?(path, ".etf") do
-      module = module_name_parts |> Enum.join(".") |> String.split(".") |> Module.concat()
-      {path, module}
+      module_name_parts |> Enum.join(".") |> String.split(".") |> Module.concat()
     else
-      module =
-        [path | module_name_parts] |> Enum.join(".") |> String.split(".") |> Module.concat()
+      [path | module_name_parts] |> Enum.join(".") |> String.split(".") |> Module.concat()
+    end
+  end
 
-      {Replayx.trace_path_for_replay(module), module}
+  defp resolve_path(path, _module_name_parts, module) do
+    if String.ends_with?(path, ".json") or String.ends_with?(path, ".etf") do
+      path
+    else
+      Replayx.trace_path_for_replay(module)
     end
   end
 

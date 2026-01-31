@@ -18,6 +18,7 @@ defmodule Replayx.Replayer do
   """
   @spec run(String.t(), module(), keyword()) :: {:ok, term()} | {:error, term()}
   def run(trace_path, module, opts \\ []) do
+    _ = Application.ensure_all_started(:telemetry)
     :telemetry.execute([:replayx, :replayer, :start], %{}, %{path: trace_path, module: module})
 
     {_metadata, events} = Replayx.Trace.read(trace_path)
