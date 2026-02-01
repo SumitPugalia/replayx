@@ -72,6 +72,9 @@ defmodule Replayx.Clock do
       {^expected_type, value} ->
         value
 
+      {:state_snapshot, _} when expected_type in [:time_monotonic, :time_system] ->
+        pop_and_return(agent_pid, expected_type, real_fun, real_args)
+
       {other, _} ->
         raise "Replay divergence: expected #{inspect(expected_type)}, got #{inspect(other)}"
 

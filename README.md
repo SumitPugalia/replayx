@@ -57,7 +57,7 @@ Basic familiarity with Elixir and GenServers is enough. No prior record/replay e
 
 - Swap `use GenServer` for `use Replayx.GenServer` and implement `handle_*_impl` instead of `handle_*`.
 - Use **`Replayx.Clock`** and **`Replayx.Rand`** instead of `System` and `:rand` in callbacks so time and randomness are recorded and replayed.
-- **Recording:** Start a recorder, pass its PID to your GenServer's `init`, and call `Replayx.Recorder.monitor(recorder_pid, self())` so the buffer flushes to a file when the process crashes (or when you stop the recorder).
+- **Recording:** Start a recorder, pass its PID to your GenServer's `init` (e.g. `[recorder_pid]`). The library monitors the process so the buffer flushes to a file when it crashes (or when you stop the recorder).
 - **Replay:** Run `mix replay path/to/trace.json MyModule` or `Replayx.replay(path, MyModule)` from code. The same execution runs again; if it crashed before, it crashes again, deterministically.
 
 ---
@@ -84,7 +84,7 @@ Then run `mix deps.get`.
 
 ### Step 1: Use the instrumented GenServer
 
-Replace `use GenServer` with `use Replayx.GenServer`. Implement **`handle_*_impl`** (not `handle_*`). In `init`, support both **record** (recorder PID) and **replay** (replayer agent), and call `Replayx.Recorder.monitor/2` when recording.
+Replace `use GenServer` with `use Replayx.GenServer`. Implement **`init_impl/1`** (return your initial state) and **`handle_*_impl`** (not `handle_*`). The library injects `replayx_recorder` or `replayx_replayer` and calls `Replayx.Recorder.monitor/2` when recording.
 
 ```elixir
 defmodule MyApp.MyServer do
@@ -94,32 +94,13 @@ defmodule MyApp.MyServer do
     GenServer.start_link(__MODULE__, [recorder_pid], [])
   end
 
-  def init(args) do
-    state = %{}
-
-    state =
-      case args do
-        [recorder_pid] when is_pid(recorder_pid) ->
-          Replayx.Recorder.monitor(recorder_pid, self())
-          Map.put(state, :replayx_recorder, recorder_pid)
-
-        [{:replayx_replayer, agent_pid}] ->
-          Map.put(state, :replayx_replayer, agent_pid)
-
-        _ ->
-          state
-      end
-
-    {:ok, state}
-  end
+  def init_impl(_args), do: {:ok, %{}}
 
   def handle_call_impl(msg, _from, state), do: {:reply, :ok, state}
   def handle_cast_impl(_msg, state), do: {:noreply, state}
   def handle_info_impl(_msg, state), do: {:noreply, state}
 end
 ```
-
-**`Replayx.Recorder.monitor(recorder_pid, self())`** — When your process crashes, the recorder writes the ring buffer to a trace file and stops.
 
 ### Step 2: Use virtualized time and randomness
 
@@ -181,7 +162,7 @@ Replay prints a **trace summary** (last N messages and state after each), then r
 | Concept | Description |
 | :------ | :---------- |
 | **Ring buffer** | Only the last N events (messages, time, rand, state snapshots) are kept. When full, the oldest is dropped. Configurable via `trace_buffer_size`. |
-| **Flush on crash** | If you call `Replayx.Recorder.monitor(recorder_pid, self())` in `init`, the recorder monitors your process. On `DOWN`, it writes the buffer to a trace file (with optional `crash_reason` in metadata) and stops. |
+| **Flush on crash** | When you pass `[recorder_pid]` in init, the library calls `Replayx.Recorder.monitor/2` and injects `replayx_recorder`. On `DOWN`, the recorder writes the buffer to a trace file (with optional `crash_reason` in metadata) and stops. |
 | **Trace file** | JSON (or binary ETF) with metadata and events. Timestamped filenames (e.g. `traces/my_server_20250131T123456Z.json`) avoid overwriting on restart. |
 | **Determinism** | Replay feeds the same messages in the same order and supplies the same time/randomness from the trace. Use only `Replayx.Clock` and `Replayx.Rand` in callbacks for reproducible replay. |
 

@@ -75,7 +75,7 @@ defmodule Replayx do
 
   @doc """
   Replays the trace file with the given module. The module must use Replayx.GenServer
-  and its init must accept `[{:replayx_replayer, agent_pid}]` and put that in state.
+  and its `init_impl/1` returns `{:ok, state}`; the library injects `replayx_replayer` when replaying.
   Returns `{:ok, final_state}` or `{:error, reason}`.
 
   You can pass either a path and module, or just the module:

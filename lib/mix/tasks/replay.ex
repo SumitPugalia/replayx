@@ -62,9 +62,16 @@ defmodule Mix.Tasks.Replay do
   end
 
   defp ensure_example_loaded!(module) do
-    if module == :"Elixir.Replayx.Examples.CrashingGenServer" do
+    example_file =
+      case to_string(module) do
+        "Elixir.Replayx.Examples.CrashingGenServer" -> "examples/record_and_replay.exs"
+        "Elixir.Replayx.Examples.DivideGenServer" -> "examples/divide_crash.exs"
+        _ -> nil
+      end
+
+    if example_file do
       Process.put(:replayx_loading_module, true)
-      _ = Code.require_file("examples/record_and_replay.exs")
+      _ = Code.require_file(example_file)
       _ = Process.delete(:replayx_loading_module)
     end
   end

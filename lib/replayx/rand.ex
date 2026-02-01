@@ -74,6 +74,8 @@ defmodule Replayx.Rand do
   defp pop_rand_value(agent_pid) do
     case Replayx.ReplayerState.pop(agent_pid) do
       {:rand, value} when is_float(value) -> value
+      {:time_monotonic, _} -> pop_rand_value(agent_pid)
+      {:state_snapshot, _} -> pop_rand_value(agent_pid)
       {other, _} -> raise "Replay divergence: expected rand float, got #{inspect(other)}"
       :empty -> :rand.uniform()
     end
@@ -83,6 +85,8 @@ defmodule Replayx.Rand do
     case Replayx.ReplayerState.pop(agent_pid) do
       {:rand, value} when is_float(value) -> trunc(value)
       {:rand, value} when is_integer(value) -> value
+      {:time_monotonic, _} -> pop_rand_value_int(agent_pid)
+      {:state_snapshot, _} -> pop_rand_value_int(agent_pid)
       {other, _} -> raise "Replay divergence: expected rand, got #{inspect(other)}"
       :empty -> :rand.uniform(1)
     end

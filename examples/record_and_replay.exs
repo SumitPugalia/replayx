@@ -1,52 +1,33 @@
-# Single example: Replayx record/replay demo.
-# Run with: mix run examples/record_and_replay.exs
+# Replayx record/replay demo.
+# Run: mix run examples/record_and_replay.exs
 #
-# Defines Replayx.Examples.CrashingGenServer and runs record + replay.
-# Traces are written to traces/<module_base>_<timestamp>.json (production-safe; no overwrite on restart).
+# Records a short scenario (ticks, roll, state, crash) then replays it.
+# Traces: traces/<module_base>_<timestamp>.json
 
 defmodule Replayx.Examples.CrashingGenServer do
   @moduledoc """
-  Example GenServer for Replayx record/replay demo.
-  Handles :tick (increments counter) and :crash (raises).
+  Example GenServer for Replayx record/replay.
+  Handles :tick (counter), :roll (virtualized rand), :state (call), and :crash (raises).
+  With virtualize: true the library records time once per message automatically; use uniform(n) where you need randomness.
   """
-  # Buffer must fit the scenario (3 ticks + :state + :crash + time/snapshot events) so replay sees full state.
-  use Replayx.GenServer, trace_buffer_size: 20
+  use Replayx.GenServer, trace_buffer_size: 20, virtualize: true
 
   def start_link(recorder_pid) when is_pid(recorder_pid) do
     GenServer.start_link(__MODULE__, [recorder_pid], [])
   end
 
-  def init(args) do
-    state = %{ticks: 0}
-
-    state =
-      case args do
-        [recorder_pid] when is_pid(recorder_pid) ->
-          Replayx.Recorder.monitor(recorder_pid, self())
-          Map.put(state, :replayx_recorder, recorder_pid)
-
-        [{:replayx_replayer, agent_pid}] ->
-          Map.put(state, :replayx_replayer, agent_pid)
-
-        _ ->
-          state
-      end
-
-    {:ok, state}
-  end
+  def init_impl(_args), do: {:ok, %{ticks: 0}}
 
   def handle_call_impl(:state, _from, state), do: {:reply, state, state}
   def handle_cast_impl(_msg, state), do: {:noreply, state}
 
   def handle_info_impl(:tick, state) do
-    _ = Replayx.Clock.monotonic_time()
     {:noreply, %{state | ticks: state.ticks + 1}}
   end
 
-  # Example: Rand is recorded/replayed so replay is deterministic
   def handle_info_impl(:roll, state) do
-    n = Replayx.Rand.uniform(10)
-    {:noreply, %{state | last_roll: n}}
+    n = uniform(10)
+    {:noreply, Map.put(state, :last_roll, n)}
   end
 
   def handle_info_impl(:crash, state) do
@@ -57,11 +38,9 @@ defmodule Replayx.Examples.CrashingGenServer do
   def handle_info_impl(_msg, state), do: {:noreply, state}
 end
 
-# Optional: example using Replayx.Clock.send_after (virtualized timers)
-# In a callback: ref = Replayx.Clock.send_after(1000, self(), :timeout)
-# In replay mode the same ref and delay are consumed from the trace.
+# For virtualized timers use send_after(ms, pid, msg) in callbacks (injected when virtualize: true).
 
-# Run the demo only when this file is executed (mix run), not when required for tests/Mix tasks.
+# Run demo only when executed directly (mix run), not when loaded for tests.
 run_demo? = is_nil(Process.get(:replayx_loading_module)) and Mix.env() != :test
 
 if run_demo? do
@@ -73,7 +52,7 @@ if run_demo? do
     "=== Recording to #{trace_dir}/#{trace_base}_<timestamp>.json (from #{inspect(module)}) ==="
   )
 
-  IO.puts("Scenario: :tick, :tick, :state, then :crash. State at crash will be logged.")
+  IO.puts("Scenario: :tick x3, :roll, :state, :crash. State at crash is logged.")
   IO.puts("")
 
   Replayx.record(module, fn recorder_pid ->
@@ -81,6 +60,7 @@ if run_demo? do
     send(pid, :tick)
     send(pid, :tick)
     send(pid, :tick)
+    send(pid, :roll)
     GenServer.call(pid, :state)
     send(pid, :crash)
     Process.unlink(pid)

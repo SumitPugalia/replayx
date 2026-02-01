@@ -34,7 +34,8 @@ defmodule Replayx.ReplayerState do
   end
 
   @doc """
-  Pops the next event and asserts it is a message. Skips state_snapshot events (used for debugging only).
+  Pops the next message event. Skips non-message events (time_monotonic, time_system,
+  rand, rand_seed, send_after, state_snapshot) so the replayer only sees messages to deliver.
   Returns {seq, kind, from, payload} or :empty.
   """
   @spec pop_message(pid()) :: {non_neg_integer(), :call | :cast | :info, term(), term()} | :empty
@@ -43,6 +44,11 @@ defmodule Replayx.ReplayerState do
       {:message, {seq, kind, from, payload}} -> {seq, kind, from, payload}
       :empty -> :empty
       {:state_snapshot, _} -> pop_message(agent_pid)
+      {:time_monotonic, _} -> pop_message(agent_pid)
+      {:time_system, _} -> pop_message(agent_pid)
+      {:rand, _} -> pop_message(agent_pid)
+      {:rand_seed, _} -> pop_message(agent_pid)
+      {:send_after, _} -> pop_message(agent_pid)
       {other, _} -> raise "Replay: expected message event, got #{inspect(other)}"
     end
   end

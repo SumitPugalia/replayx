@@ -22,8 +22,7 @@ defmodule Replayx.TracedServerStarter do
 
   Your GenServer must:
   - `use Replayx.GenServer`
-  - In `init`, handle `[recorder_pid | rest]` when `recorder_pid` is a pid: call
-    `Replayx.Recorder.monitor(recorder_pid, self())` and put `replayx_recorder: recorder_pid` in state
+  - Implement `init_impl/1` returning `{:ok, state}` (the library injects `replayx_recorder` when recording)
   - Use `Replayx.Clock` and `Replayx.Rand` in callbacks for determinism
 
   ## Options (passed to `start_child/4`)
@@ -40,8 +39,8 @@ defmodule Replayx.TracedServerStarter do
   @doc """
   Returns a child spec for use under a DynamicSupervisor.
 
-  The server module must `use Replayx.GenServer` and its `init` must accept
-  `[recorder_pid | server_init_args]` when recording (recorder_pid is a pid).
+  The server module must `use Replayx.GenServer` and implement `init_impl/1` returning `{:ok, state}`.
+  The library injects `replayx_recorder` when recording (init args are `[recorder_pid | server_init_args]`).
 
   ## Options
 

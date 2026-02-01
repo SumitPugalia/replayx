@@ -36,10 +36,11 @@ defmodule Replayx.Recorder do
 
   @doc """
   Records an event. Events are kept in a ring buffer (last N). On stop or crash, the buffer is flushed to the trace file.
+  Uses a call so order is preserved when recording message then time in the same callback.
   """
   @spec record_event(pid() | atom(), event()) :: :ok
   def record_event(recorder_pid, event) do
-    GenServer.cast(recorder_pid, {:record, event})
+    GenServer.call(recorder_pid, {:record, event}, :infinity)
   end
 
   @doc """
@@ -82,9 +83,9 @@ defmodule Replayx.Recorder do
   end
 
   @impl GenServer
-  def handle_cast({:record, event}, state) do
+  def handle_call({:record, event}, _from, state) do
     buffer = [event | state.buffer] |> Enum.take(state.buffer_size)
-    {:noreply, %{state | buffer: buffer}}
+    {:reply, :ok, %{state | buffer: buffer}}
   end
 
   @impl GenServer
