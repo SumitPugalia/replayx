@@ -4,7 +4,7 @@ defmodule Replayx.MixProject do
   def project do
     [
       app: :replayx,
-      version: "1.0.2",
+      version: "1.0.3",
       elixir: "~> 1.17",
       start_permanent: Mix.env() == :prod,
       elixirc_paths: elixirc_paths(Mix.env()),
@@ -30,11 +30,11 @@ defmodule Replayx.MixProject do
 
   defp docs do
     [
-      main: "Replayx",
+      main: "readme",
       name: "Replayx",
       source_url: "https://github.com/SumitPugalia/replayx",
       source_ref: "v#{Mix.Project.config()[:version]}",
-      extras: ["README.md": [filename: "README.md", title: "Overview"]],
+      extras: ["README.md"],
       groups_for_modules: [
         "Public API": [
           Replayx,
