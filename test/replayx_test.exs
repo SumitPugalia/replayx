@@ -286,9 +286,11 @@ defmodule ReplayxTest do
       files = Path.wildcard(Path.join(tmp_dir, "replayx_examples_crashinggenserver*.json"))
 
       if files != [] do
-        # Trace was written; optionally verify replay works
+        # Trace was written; replay reproduces the crash
         [path | _] = files
-        assert {:ok, _} = Replayx.replay(path, CrashingGenServer)
+        assert_raise RuntimeError, ~r/replayx example crash/, fn ->
+          Replayx.replay(path, CrashingGenServer)
+        end
       end
     end
   end

@@ -40,6 +40,8 @@ This replays the latest trace and reproduces the crash deterministically.
 - On crash, the Recorder flushes the ring buffer to a timestamped JSON file in `traces/`.
 - The web UI can **Restart divisor server** to start a new pair after a crash.
 
+**Use this app as the reference** for production-style recording: TracedServerStarter traps exits so the Recorder can flush the trace before the starter exits. Always run `mix replay` from **divisor_app** (not the replayx repo root).
+
 ## Replayx
 
 Replayx is included as a path dependency (`path: ".."`). See the parent repo for full documentation.

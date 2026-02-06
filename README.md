@@ -200,6 +200,7 @@ use Replayx.GenServer,
 
 - **Do not return from `record`** until the GenServer has finished handling the messages you sent (e.g. use `Process.monitor` and `receive {:DOWN, ...}` after sending a message that causes a crash).
 - **Trace write failure** — On failure the Recorder emits `[:replayx, :recorder, :trace_write_failed]`; attach to log or alert. The Recorder still stops.
+- **TracedServerStarter (production)** — When you start a Recorder + GenServer pair with `Replayx.TracedServerStarter`, the starter traps exits so that when the GenServer crashes, the Recorder can receive `DOWN`, flush the trace file, and exit before the starter exits. Use the **divisor_app** example as the reference.
 
 ### Replaying
 

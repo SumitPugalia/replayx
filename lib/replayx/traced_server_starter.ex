@@ -87,6 +87,7 @@ defmodule Replayx.TracedServerStarter do
 
   @impl GenServer
   def init({server_module, server_init_args, opts}) do
+    Process.flag(:trap_exit, true)
     gen_server_opts = Keyword.take(opts, [:name, :timeout, :spawn_opt, :debug, :hibernate_after])
     replayx_overrides = Keyword.take(opts, [:trace_buffer_size, :trace_dir, :trace_rotation])
 
@@ -123,6 +124,17 @@ defmodule Replayx.TracedServerStarter do
         _ = Replayx.Recorder.stop(recorder_pid)
         {:stop, err}
     end
+  end
+
+  @impl GenServer
+  def handle_info({:EXIT, pid, _reason}, state) when pid == state.server_pid do
+    # GenServer crashed (we're linked). Stay alive so Recorder can receive DOWN, flush trace, then exit.
+    {:noreply, %{state | server_ref: nil}}
+  end
+
+  def handle_info({:EXIT, pid, _reason}, state) when pid == state.recorder_pid do
+    # Recorder exited (after flush on server crash or normal stop). Same as DOWN from recorder.
+    {:stop, :normal, state}
   end
 
   @impl GenServer
