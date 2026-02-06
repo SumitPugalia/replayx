@@ -30,11 +30,11 @@ defmodule Replayx.MixProject do
 
   defp docs do
     [
-      main: "readme",
-      extras: ["README.md"],
+      main: "Replayx",
+      name: "Replayx",
       source_url: "https://github.com/SumitPugalia/replayx",
-      source_ref: "v1.0.1",
-      formatters: ["html"],
+      source_ref: "v#{Mix.Project.config()[:version]}",
+      extras: ["README.md": [filename: "README.md", title: "Overview"]],
       groups_for_modules: [
         "Public API": [
           Replayx,
