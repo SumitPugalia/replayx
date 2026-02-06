@@ -288,6 +288,7 @@ defmodule ReplayxTest do
       if files != [] do
         # Trace was written; replay reproduces the crash
         [path | _] = files
+
         assert_raise RuntimeError, ~r/replayx example crash/, fn ->
           Replayx.replay(path, CrashingGenServer)
         end

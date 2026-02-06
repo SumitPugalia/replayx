@@ -43,6 +43,7 @@ if run_demo? do
   # 4. "Caller" (in a real app this could be another GenServer, API, or background job)
   #    Build divisors: first 3 from 1..5 (safe), then 0..5 until we get 0.
   first_three = for _ <- 1..3, do: :rand.uniform(5)
+
   rest =
     Enum.reduce_while(1..500, [], fn _, acc ->
       d = :rand.uniform(6) - 1
