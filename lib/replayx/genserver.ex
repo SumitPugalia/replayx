@@ -167,7 +167,7 @@ defmodule Replayx.GenServer do
   end
 
   @doc false
-  @spec __after_compile__(Macro.Env.t(), binary()) :: :ok | [term()]
+  @spec __after_compile__(Macro.Env.t(), binary()) :: nil | [term()]
   def __after_compile__(env, _binary) do
     virtualize = Module.get_attribute(env.module, :replayx_virtualize) || []
 
@@ -213,34 +213,34 @@ defmodule Replayx.GenServer do
 
   defp get_clauses(module, name, arity) do
     case Module.get_definition(module, {name, arity}, []) do
-      nil -> []
-      clauses when is_list(clauses) -> clauses
-      single -> [single]
+      nil ->
+        []
+
+      clauses ->
+        if is_list(clauses), do: clauses, else: [clauses]
     end
   end
 
   defp find_system_or_rand_calls(quoted, virtualize) do
-    acc = []
+    {_, acc} =
+      Macro.prewalk(quoted, [], fn
+        {{:., _, [mod, _fun]}, _, _} = node, acc ->
+          name = if is_atom(mod), do: mod, else: nil
 
-    Macro.prewalk(quoted, fn
-      {{:., _, [mod, _fun]}, _, _} = node ->
-        name = if is_atom(mod), do: mod, else: nil
+          new_acc =
+            cond do
+              name == System and :time in virtualize -> [:System | acc]
+              name == :rand and :rand in virtualize -> [":rand" | acc]
+              true -> acc
+            end
 
-        cond do
-          name == System and :time in virtualize -> [:System | acc]
-          name == :rand and :rand in virtualize -> [":rand" | acc]
-          true -> acc
-        end
+          {node, new_acc}
 
-        node
+        node, acc ->
+          {node, acc}
+      end)
 
-      node ->
-        node
-    end)
-    |> case do
-      {_, acc2} -> acc2
-      _ -> []
-    end
+    acc
   end
 
   @doc false
@@ -248,7 +248,7 @@ defmodule Replayx.GenServer do
   def instrument_call(module, msg, from, state) do
     set_process_dict(state)
     maybe_record_message(state, :call, from, msg)
-    maybe_consume_time(module)
+    _ = maybe_consume_time(module)
     result = module.handle_call_impl(msg, from, state)
     maybe_record_state_snapshot(state, result, :call)
     result
@@ -259,7 +259,7 @@ defmodule Replayx.GenServer do
   def instrument_cast(module, msg, state) do
     set_process_dict(state)
     maybe_record_message(state, :cast, nil, msg)
-    maybe_consume_time(module)
+    _ = maybe_consume_time(module)
     result = module.handle_cast_impl(msg, state)
     maybe_record_state_snapshot(state, result, :cast)
     result
@@ -270,7 +270,7 @@ defmodule Replayx.GenServer do
   def instrument_info(module, msg, state) do
     set_process_dict(state)
     maybe_record_message(state, :info, nil, msg)
-    maybe_consume_time(module)
+    _ = maybe_consume_time(module)
     result = module.handle_info_impl(msg, state)
     maybe_record_state_snapshot(state, result, :info)
     result
