@@ -15,6 +15,9 @@ defmodule DivisorApp.Application do
       {DynamicSupervisor, strategy: :one_for_one, name: DivisorApp.TracedWorkers},
       # Start DivisorGenServer under TracedServerStarter (record/replay on crash)
       DivisorApp.DivisorServerStarter,
+      # Plain example: same logic, different route (/divide_plain)
+      {DynamicSupervisor, strategy: :one_for_one, name: DivisorApp.PlainTracedWorkers},
+      DivisorApp.PlainDivisorServerStarter,
       DivisorAppWeb.Endpoint
     ]
 

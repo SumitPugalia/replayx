@@ -16,6 +16,7 @@
 - [Installation](#installation)
 - [Quick start](#quick-start)
 - [Core concepts](#core-concepts)
+- [Keeping replay faithful](#keeping-replay-faithful)
 - [Configuration](#configuration)
 - [Recording and replaying](#recording-and-replaying)
 - [CLI reference](#cli-reference)
@@ -165,6 +166,73 @@ Replay prints a **trace summary** (last N messages and state after each), then r
 | **Flush on crash** | When you pass `[recorder_pid]` in init, the library calls `Replayx.Recorder.monitor/2` and injects `replayx_recorder`. On `DOWN`, the recorder writes the buffer to a trace file (with optional `crash_reason` in metadata) and stops. |
 | **Trace file** | JSON (or binary ETF) with metadata and events. Timestamped filenames (e.g. `traces/my_server_20250131T123456Z.json`) avoid overwriting on restart. |
 | **Determinism** | Replay feeds the same messages in the same order and supplies the same time/randomness from the trace. Use only `Replayx.Clock` and `Replayx.Rand` in callbacks for reproducible replay. |
+
+---
+
+## Keeping replay faithful
+
+Replay stays deterministic only if **inside your GenServer callbacks** you use Replayx’s virtualized time, randomness, and timers. If you call `System`, `:rand`, or `Process.send_after` directly in a callback, those values are not recorded, so during replay you get different values and the run can **diverge** (different path, no crash, or misleading trace).
+
+**Use the Replayx replacements in callbacks:**
+
+| In callback, avoid | Use instead | Why |
+| :----------------- | :---------- | :-- |
+| `System.monotonic_time/1` | `Replayx.Clock.monotonic_time/1` | Same time value on replay. |
+| `System.system_time/1` | `Replayx.Clock.system_time/1` | Same time value on replay. |
+| `:rand.uniform()` / `:rand.uniform(n)` | `Replayx.Rand.uniform()` / `Replayx.Rand.uniform(n)` | Same random value on replay. |
+| `Process.send_after(ms, pid, msg)` | `Replayx.Clock.send_after(ms, pid, msg)` | Same ref and logical “when” on replay. |
+
+**Time — don’t use `System` in callbacks:**
+
+```elixir
+# Replay can diverge (avoid)
+def handle_info_impl(:check, state) do
+  now = System.monotonic_time(:millisecond)
+  if now > state.deadline, do: do_timeout(), else: :ok
+  {:noreply, state}
+end
+
+# Replay stays faithful (do)
+def handle_info_impl(:check, state) do
+  now = Replayx.Clock.monotonic_time(:millisecond)
+  if now > state.deadline, do: do_timeout(), else: :ok
+  {:noreply, state}
+end
+```
+
+**Random — don’t use `:rand` in callbacks:**
+
+```elixir
+# Replay can diverge (avoid)
+def handle_info_impl(:roll, state) do
+  n = :rand.uniform(10)
+  {:noreply, %{state | last_roll: n}}
+end
+
+# Replay stays faithful (do)
+def handle_info_impl(:roll, state) do
+  n = Replayx.Rand.uniform(10)
+  {:noreply, %{state | last_roll: n}}
+end
+```
+
+**Timers — don’t use `Process.send_after` in callbacks:**
+
+```elixir
+# Replay can diverge (avoid)
+def handle_call_impl(:schedule_tick, _from, state) do
+  ref = Process.send_after(self(), :tick, 1000)
+  {:reply, :ok, %{state | tick_ref: ref}}
+end
+
+# Replay stays faithful (do)
+def handle_call_impl(:schedule_tick, _from, state) do
+  ref = Replayx.Clock.send_after(1000, self(), :tick)
+  {:reply, :ok, %{state | tick_ref: ref}}
+end
+```
+
+Messages sent **to** the GenServer (e.g. via `Process.send`, HTTP, or another process) are always recorded and replayed; the rule applies only to code **inside** the callbacks.
 
 ---
 

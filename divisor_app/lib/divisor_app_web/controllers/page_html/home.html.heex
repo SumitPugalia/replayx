@@ -7,7 +7,8 @@
     </p>
 
     <div class="mt-8 rounded-box bg-base-200 p-6">
-      <form action={~p"/divide"} method="post" class="flex flex-wrap items-end gap-4">
+      <p class="text-sm font-medium text-base-content/80">Route: POST /divide</p>
+      <form action={~p"/divide"} method="post" class="mt-2 flex flex-wrap items-end gap-4">
         <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
         <div class="form-control">
           <label for="divisor" class="label">
@@ -39,9 +40,44 @@
       </form>
     </div>
 
+    <div class="mt-8 rounded-box bg-base-200 p-6">
+      <p class="text-sm font-medium text-base-content/80">Route: POST /divide_plain (same logic, plain GenServer example)</p>
+      <form action={~p"/divide_plain"} method="post" class="mt-2 flex flex-wrap items-end gap-4">
+        <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+        <div class="form-control">
+          <label for="divisor_plain" class="label">
+            <span class="label-text">Divisor (0–5)</span>
+          </label>
+          <input
+            type="number"
+            name="divisor"
+            id="divisor_plain"
+            min="0"
+            max="5"
+            value="2"
+            required
+            class="input input-bordered w-24"
+          />
+        </div>
+        <button type="submit" class="btn btn-primary btn-outline">
+          Divide 10 (plain)
+        </button>
+      </form>
+
+      <p class="mt-4 text-sm text-base-content/70">
+        Plain server: <%= if @plain_server_alive, do: "running", else: "down (crashed). Use Restart below." %>
+      </p>
+
+      <form action={~p"/restart_plain"} method="post" class="mt-4">
+        <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+        <button type="submit" class="btn btn-ghost btn-sm">Restart plain divisor server</button>
+      </form>
+    </div>
+
     <div class="mt-6 text-sm text-base-content/60">
       <p>After a crash: traces are in <code class="rounded bg-base-300 px-1">divisor_app/traces/</code>.</p>
-      <p class="mt-1">Replay: <code class="rounded bg-base-300 px-1">cd divisor_app && mix replay DivisorApp.DivisorGenServer</code></p>
+      <p class="mt-1">Replay dynamic: <code class="rounded bg-base-300 px-1">mix replay DivisorApp.DivisorGenServer</code></p>
+      <p class="mt-1">Replay plain: <code class="rounded bg-base-300 px-1">mix replay DivisorApp.PlainDivisorGenServer</code></p>
     </div>
   </div>
 </div>

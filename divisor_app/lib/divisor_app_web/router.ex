@@ -20,6 +20,8 @@ defmodule DivisorAppWeb.Router do
     get "/", PageController, :home
     post "/divide", PageController, :divide
     post "/restart", PageController, :restart
+    post "/divide_plain", PageController, :divide_plain
+    post "/restart_plain", PageController, :restart_plain
   end
 
   # Other scopes may use custom stacks.
