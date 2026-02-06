@@ -2,7 +2,7 @@
 
 [![Hex.pm](https://img.shields.io/hexpm/v/replayx.svg)](https://hex.pm/packages/replayx)
 [![Hexdocs](https://img.shields.io/badge/docs-hexdocs.pm-purple)](https://hexdocs.pm/replayx)
-[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+[![License](https://img.shields.io/hexpm/l/replayx)](https://github.com/SumitPugalia/replayx/blob/main/LICENSE)
 
 > **Deterministic replay debugging for Elixir GenServers.** Record what led to a crash, then replay it exactly—every time.
 
@@ -24,6 +24,8 @@
 - [Telemetry](#telemetry)
 - [Example](#example)
 - [Development](#development)
+- [Contributing](#contributing)
+- [Security](#security)
 - [License](#license)
 
 ---
@@ -355,6 +357,7 @@ It defines `Replayx.Examples.CrashingGenServer`, records a scenario (tick, tick,
 - **Format** — `mix format`
 - **Static analysis** — `mix credo`
 - **Types** — `mix dialyzer` (builds PLT on first run)
+- **Docs** — `mix docs` (generates HTML docs in `doc/` for [Hex](https://hexdocs.pm/replayx))
 
 ### Pre-push checks
 
@@ -366,10 +369,16 @@ To run the same checks manually: `./script/pre-push` or `mix prepush`.
 
 ### Contributing
 
-Contributions are welcome. Open an issue or PR. Ensure tests pass and follow the project's formatting and style (Credo, Dialyzer).
+Contributions are welcome. Please read [CONTRIBUTING.md](https://github.com/SumitPugalia/replayx/blob/main/CONTRIBUTING.md) for how to run tests, format, and submit changes. By participating, you agree to our [Code of Conduct](https://github.com/SumitPugalia/replayx/blob/main/CODE_OF_CONDUCT.md).
+
+---
+
+## Security
+
+To report a security vulnerability, please see [SECURITY.md](https://github.com/SumitPugalia/replayx/blob/main/SECURITY.md). Do not open a public issue.
 
 ---
 
 ## License
 
-Copyright 2025. Licensed under the [Apache License, Version 2.0](LICENSE).
+Copyright 2025. Licensed under the [Apache License, Version 2.0](https://github.com/SumitPugalia/replayx/blob/main/LICENSE).

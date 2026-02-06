@@ -4,7 +4,7 @@ defmodule Replayx.MixProject do
   def project do
     [
       app: :replayx,
-      version: "1.0.1",
+      version: "1.0.2",
       elixir: "~> 1.17",
       start_permanent: Mix.env() == :prod,
       elixirc_paths: elixirc_paths(Mix.env()),
@@ -12,14 +12,41 @@ defmodule Replayx.MixProject do
       dialyzer: dialyzer(),
       description:
         "Deterministic replay debugging for Elixir GenServers. Record what led to a crash, then replay it exactly.",
-      package: package()
+      package: package(),
+      docs: docs()
     ]
   end
 
   defp package do
     [
       licenses: ["Apache-2.0"],
-      links: %{"GitHub" => "https://github.com/SumitPugalia/replayx"}
+      links: %{
+        "GitHub" => "https://github.com/SumitPugalia/replayx",
+        "Docs" => "https://hexdocs.pm/replayx"
+      },
+      files: ~w(lib mix.exs README.md LICENSE .formatter.exs)
+    ]
+  end
+
+  defp docs do
+    [
+      main: "readme",
+      extras: ["README.md"],
+      source_url: "https://github.com/SumitPugalia/replayx",
+      source_ref: "v1.0.1",
+      formatters: ["html"],
+      groups_for_modules: [
+        "Public API": [
+          Replayx,
+          Replayx.Clock,
+          Replayx.Rand,
+          Replayx.GenServer,
+          Replayx.TracedServerStarter
+        ],
+        "Recording & replay": [Replayx.Recorder, Replayx.Replayer, Replayx.ReplayerState],
+        "Trace format": [Replayx.Trace],
+        "Mix tasks": [Mix.Tasks.Replay, Mix.Tasks.Replay.Record]
+      ]
     ]
   end
 
