@@ -167,6 +167,7 @@ defmodule Replayx.GenServer do
   end
 
   @doc false
+  @spec __after_compile__(Macro.Env.t(), binary()) :: :ok | [term()]
   def __after_compile__(env, _binary) do
     virtualize = Module.get_attribute(env.module, :replayx_virtualize) || []
 
