@@ -21,6 +21,7 @@ defmodule Mix.Tasks.Replay do
       [path | module_name_parts] ->
         module = resolve_module(path, module_name_parts)
         ensure_example_loaded!(module)
+        ensure_module_available!(module)
         path = resolve_path(path, module_name_parts, module)
         if opts[:validate], do: validate_only(path), else: replay(path, module, opts)
 
@@ -73,6 +74,26 @@ defmodule Mix.Tasks.Replay do
       Process.put(:replayx_loading_module, true)
       _ = Code.require_file(example_file)
       _ = Process.delete(:replayx_loading_module)
+    end
+  end
+
+  defp ensure_module_available!(module) do
+    Mix.Task.reenable("compile")
+    Mix.Task.run("compile", [])
+
+    case Code.ensure_loaded(module) do
+      {:module, _} ->
+        :ok
+
+      {:error, :nofile} ->
+        Mix.raise("""
+        Module #{inspect(module)} is not in the current project.
+
+        Run mix replay from the application that defines this module, e.g.:
+
+          cd divisor_app
+          mix replay DivisorApp.DivisorGenServer
+        """)
     end
   end
 

@@ -1,0 +1,47 @@
+<Layouts.flash_group flash={@flash} />
+<div class="px-4 py-10 sm:px-6 lg:px-8">
+  <div class="mx-auto max-w-xl">
+    <h1 class="text-2xl font-semibold">Replayx divisor demo</h1>
+    <p class="mt-2 text-base-content/70">
+      Divides 10 by a divisor (0–5). Divisor 0 crashes the server; the trace is written so you can replay.
+    </p>
+
+    <div class="mt-8 rounded-box bg-base-200 p-6">
+      <form action={~p"/divide"} method="post" class="flex flex-wrap items-end gap-4">
+        <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+        <div class="form-control">
+          <label for="divisor" class="label">
+            <span class="label-text">Divisor (0–5)</span>
+          </label>
+          <input
+            type="number"
+            name="divisor"
+            id="divisor"
+            min="0"
+            max="5"
+            value="2"
+            required
+            class="input input-bordered w-24"
+          />
+        </div>
+        <button type="submit" class="btn btn-primary">
+          Divide 10 by this
+        </button>
+      </form>
+
+      <p class="mt-4 text-sm text-base-content/70">
+        Server: <%= if @server_alive, do: "running", else: "down (crashed). Use Restart below." %>
+      </p>
+
+      <form action={~p"/restart"} method="post" class="mt-4">
+        <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+        <button type="submit" class="btn btn-ghost btn-sm">Restart divisor server</button>
+      </form>
+    </div>
+
+    <div class="mt-6 text-sm text-base-content/60">
+      <p>After a crash: traces are in <code class="rounded bg-base-300 px-1">divisor_app/traces/</code>.</p>
+      <p class="mt-1">Replay: <code class="rounded bg-base-300 px-1">cd divisor_app && mix replay DivisorApp.DivisorGenServer</code></p>
+    </div>
+  </div>
+</div>
